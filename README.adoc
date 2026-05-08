@@ -1,0 +1,52 @@
+= Agent Software Engineer Skills Repository
+:toc: left
+:toclevels: 3
+:sectnums:
+:icons: font
+:experimental:
+
+== Introducción
+
+Este repositorio contiene una colección de habilidades (skills) para agentes de inteligencia artificial (IA) en el ámbito del desarrollo de software. Cada habilidad está diseñada para proporcionar a los agentes de IA la capacidad de realizar tareas específicas relacionadas con el diseño, desarrollo, pruebas y documentación de software.
+
+== Estructura de Directorios en Agentes de IA
+
+Para que un agente funcione correctamente, debe seguir una estructura de directorios específica. A continuación se muestra un ejemplo de cómo organizar los archivos y directorios dentro de un agente de IA:
+
+[source,text]
+----
+./AGENT_NAME/ -> claude, gemini, copilot, opencode, etc
+└── skills/
+    ├── documentation-generator/
+    │   ├── SKILL.md
+    │   └── src/
+    │       ├── *.example.puml
+    │       └── utils/
+    ├── software-design/
+    │   ├── SKILL.md
+    │   ├── architecture.md
+    │   ├── design.md
+    │   ├── modular.md
+    │   ├── oop.md
+    │   └── patterns.md
+    ├── software-testing/
+    │   ├── SKILL.md
+    │   ├── software-testing.md
+    │   ├── unit-testing.md
+    │   ├── unit-testing-test-cases.md
+    │   └── unit-testing-test-doubles.md
+    └── software-engineer/
+        ├── SKILL.md
+----
+
+== Funcionamiento
+
+Desde el agente de IA comprobar mediante: 
+
+[source,text]
+----
+/software-testing
+/software-engineer
+/documentation-generator
+/software-design
+----
