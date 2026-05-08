@@ -1,0 +1,134 @@
+@startuml activity-diagram
+
+
+!include settings.puml
+
+
+title Manejo de Errores en Cuerpo de Request
+
+|Cliente HTTP|
+start
+:Enviar solicitud HTTP\n(POST / PATCH / PUT);
+
+|Filtro de Captura|
+if (¿Método es POST, PATCH o PUT?) then (sí)
+  :Leer InputStream del request;
+  :Guardar body en archivo temporal\n(payload_*.json);
+  :Almacenar ruta en atributo\nREQUEST_BODY_FILE;
+  :Envolver request con\nReplayableServletInputStream;
+else (no)
+  :Pasar sin captura de body;
+endif
+
+|Spring Security|
+:Extraer API Key del header Authorization;
+if (¿API Key válida?) then (no)
+  :Retornar 401 Unauthorized;
+  stop
+else (sí)
+endif
+
+|Controlador REST|
+:Recibir solicitud autenticada;
+:Jackson intenta deserializar body\nen clase DTO registrada;
+note right
+  Falla si el JSON contiene tokens
+  inválidos o enums desconocidos
+end note
+:Lanzar HttpMessageNotReadableException;
+
+|Manejador de Excepciones|
+:Capturar HttpMessageNotReadableException;
+:RequestBodyReader.read()\nleer body original desde atributo del request;
+
+|Análisis de Tokens|
+:JsonTokenScanner.scan(body);
+:Aplicar FIELD_PATTERN regex sobre el body;
+while (¿hay más tokens en el body?) is (sí)
+  :Extraer propiedad y valor del token;
+  if (¿valor es literal JSON válido\n(null, true, false, número)?) then (no)
+    :TextPosition — calcular línea y columna;
+    :JsonPathResolver.resolve() — resolver ruta del campo;
+    :Crear ApiFieldError (JSON_PARSE_ERROR);
+    :Enmascarar valor con null en safeBody;
+  endif
+endwhile (no)
+:Retornar ScanResult(errors, safeBody);
+
+|Manejador de Excepciones|
+:ValidationRouteRegistry.match\n(método, URI, safeBody);
+if (¿safeBody inicia con "["?) then (sí)
+  :Buscar ruta registrada como BULK;
+else (no)
+  :Buscar ruta registrada como SINGLE;
+endif
+if (¿ruta encontrada?) then (no)
+  :route = null;
+endif
+
+|Procesamiento de Cuerpo|
+if (¿route es null o safeBody vacío?) then (sí)
+  :Retornar lista vacía;
+else (no)
+  :objectMapper.readTree(safeBody);
+  if (¿ruta es BULK y root es array?) then (sí)
+    while (¿hay más items en el array?) is (sí)
+      :deserializeNode(item, tipo, índice);
+      note right
+        Bucle de reintentos (maxRetries = tamaño del objeto):
+        1. objectMapper.treeToValue() → retorna dto si éxito
+        2. JacksonException → agregar error + enmascarar campo fallido
+        3. Reintentar con el nodo modificado
+      end note
+      :Agregar errores de deserialización;
+      if (¿dto construido con éxito?) then (sí)
+        :Agregar dto a lista de ítems válidos;
+      endif
+    endwhile (no)
+    :processValidBulkItems — route.process(validSet);
+    note right
+      Bean validation en lote via StructuredTaskScope
+    end note
+  else (no — SINGLE)
+    :deserializeNode(root, tipo, -1);
+    if (¿dto construido con éxito?) then (sí)
+      :processSingleItem — route.process(\{dto\});
+      note right
+        Bean validation del ítem único
+      end note
+    endif
+  endif
+endif
+:Retornar errores de deserialización y validación;
+
+|Manejador de Excepciones|
+:mergeErrors(ex, scanResult, validationErrors);
+note right
+  Sin errores de scan: usar validationErrors
+  (o mapear la excepción original como fallback)
+  Con errores de scan: scanErrors + validationErrors
+end note
+:deduplicate(errors);
+note right
+  1. Eliminar duplicados exactos
+  2. Suprimir VALIDATION_ERROR_NOT_NULL
+     para campos que ya tienen otro error
+end note
+if (¿algún error contiene INTERNAL_SERVER_ERROR?) then (sí)
+  :Retornar 500 Internal Server Error;
+  stop
+else (no)
+  if (¿ruta SINGLE?) then (sí)
+    :Construir SingleErrorResponse\n(400 Bad Request);
+  else (no — BULK o ruta null)
+    :Construir BulkErrorResponse;
+    :appendBulkStats — calcular\nítems procesados vs fallidos;
+  endif
+endif
+:bulkLogService.log(request, response);
+
+|Cliente HTTP|
+:Recibir respuesta con errores detallados\n(parse errors + enum errors + validation errors);
+stop
+
+@enduml
