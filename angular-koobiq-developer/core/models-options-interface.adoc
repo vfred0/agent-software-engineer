@@ -1,0 +1,95 @@
+= Models: Interfaz `Option<T, D>` y Funciones
+:toc:
+:icons: font
+
+== Ubicación==
+
+Las interfaces y funciones están en `core/utils/utils.ts`.
+
+== Interfaz `Option<T, D>` (`core/utils/utils.ts`)
+
+Define la estructura para opciones de selects y badges:
+
+[source, typescript]
+----
+export interface Option<T, D = unknown> {
+  id: T;                    // Valor único (usualmente enum o string/number)
+  name: string;              // Texto mostrado
+  image?: string;             // URL de imagen (opcional)
+  badgeColor?: KbqBadgeColors; // Color del badge (de Kobiq)
+  isPositive?: boolean;        // Si es positivo (opcional)
+  options?: Option<T>[];     // Sub-opciones (para optgroups)
+  description?: string;       // Descripción (opcional)
+  roles?: Role[];            // Roles que pueden verlo (opcional)
+  data?: D;                  // Datos adicionales (genérico)
+  append?: (value: unknown) => void; // Función para extender (si es ExtendableOptions)
+}
+----
+
+== Función `createExtendableOptions<T>` (`core/utils/utils.ts`)
+
+Creaa un array de opciones que puede extenderse dinámicamente:
+
+[source, typescript]
+----
+export function createExtendableOptions<T>(options: Option<T>[]): ExtendableOptions<T> {
+  const optArray = [...options] as ExtendableOptions<T>;
+
+  optArray.append = function (newItems: T[] | Option<T>[]): Option<T>[] {
+    const existingIds = new Set(this.map((opt) => opt.id));
+
+    const mappedOptions = newItems.map((item) => {
+      if (item !== null && typeof item === 'object' && 'id' in item && 'name' in item) {
+        return item as Option<T>;
+      }
+      return { id: item as T, name: String(item) } as Option<T>;
+    });
+
+    const additions = mappedOptions.filter((opt) => !existingIds.has(opt.id));
+    this.push(...additions);
+    return this;
+  };
+
+  return optArray;
+}
+----
+
+Uso práctico:
+[source, typescript]
+----
+// En el componente padre
+allergyOptions = AllergyOptions.append(this.panelData.user?.allergies || []);
+
+// En la plantilla (select multiple)
+<app-select
+  formGroupKey="allergies"
+  [options]="allergyOptions()"
+  [multiple]="true"
+/>
+----
+
+== Función `getOptionByValue` (`core/utils/utils.ts`)
+
+Encuentra una opción por su valor:
+
+[source, typescript]
+----
+export function getOptionByValue(value: unknown, options: Option<unknown>[]): Option<unknown> {
+  return options.find((option) => option?.id === value) || options[0];
+}
+----
+
+== SearchCriteria (`core/models/filters/search-criteria.ts`)
+
+[source, typescript]
+----
+export interface SearchCriteria {
+  query?: string;       // Búsqueda texto libre
+  filters?: FilterValue[]; // Filtros aplicados
+  page?: number;         // Paginación
+}
+
+export function mapFilters(kbqFilter: KbqFilter): FilterValue[] {
+  // Convierte filtros de Kobiq FilterBar a formato plano
+}
+----

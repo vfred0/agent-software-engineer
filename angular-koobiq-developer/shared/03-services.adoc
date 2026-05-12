@@ -1,0 +1,232 @@
+= Servicios: Operations, InMemory, JSON-Server
+:toc:
+:icons: font
+
+== Ubicación
+
+Los servicios están en `src/app/shared/services/` y sus tokens en `shared/services/service.tokens.ts`.
+
+== Estructura de Carpetas
+
+[source, bash]
+----
+shared/services/
+├── auth/                     # Servicios de autenticación
+├── calendar/                 # Servicios de calendario (in-memory y regular)
+├── consultations/             # Servicios de consultas
+├── crud/                     # Base CRUD y utilidades
+│   ├── base-crud.service.ts  # Clase abstracta base
+│   ├── page.service.ts       # Manejo de paginación
+│   └── search-criteria.service.ts # Manejo de criterios de búsqueda
+├── dental-services/          # Servicios de servicios dentales
+├── treatments/               # Servicios de tratamientos
+├── users/                    # Servicios de usuarios
+├── operations.ts             # Patrón Operation
+├── service.ts                # Clase base Service<T>
+└── service.tokens.ts         # Tokens de inyección
+----
+
+== Patrón Operation (`operations.ts`)
+
+Define operaciones asíncronas reactivas usando RxJS y Angular Signals.
+
+=== Interfaz `Operation<Args, R>`
+
+[source, typescript]
+----
+export interface Operation<Args extends unknown[], R> {
+  (...args: Args): Execution<R>;  // Ejecuta la operación
+  result: Signal<R | undefined>;   // Resultado reactivo
+  status: Signal<OperationStatus>; // 'idle' | 'loading' | 'resolved' | 'error'
+  error: Signal<unknown>;         // Error si existe
+  isLoading: Signal<boolean>;    // Si está cargando
+  isCompleted: Signal<boolean>;  // Si terminó (éxito o error)
+  hasError: Signal<boolean>;      // Si hubo error
+  containsData: Signal<boolean>; // Si hay datos válidos
+  onSuccess: (handler: (value: R) => void) => Operation<Args, R>;
+  onError: (handler: (err: unknown) => void) => Operation<Args, R>;
+}
+----
+
+=== Creación de Operations
+
+Se usa `createOperation` para crear una operación a partir de un factory que devuelve un `Observable`:
+
+[source, typescript]
+----
+import { createOperation } from '@shared/services/operations';
+
+// Ejemplo en UserService
+readonly findAll = createOperation(
+  () => {
+    const query = this.criteria?.value?.query;
+    const url = query ? `${this.apiUrl}?q=${query}` : this.apiUrl;
+    return this.http.get<UserDto[]>(url);
+  },
+  (err) => this.handleError(err),
+);
+----
+
+=== `TrackedOperation`
+
+Variante que rastrea un ID para evitar duplicados (usa `LoadingSet` interno):
+
+[source, typescript]
+----
+readonly delete = createOperation(
+  (id: number) => this.http.delete<void>(`${this.apiUrl}/${id}`),
+  (err) => this.handleError(err),
+  true, // trackId = true
+).onSuccess(() => {
+  this.findAll(); // Refresca la lista
+});
+----
+
+== Clase Base `Service<T>` (`service.ts`)
+
+Clase genérica que maneja estado de carga, resultado y error con Signals.
+
+[source, typescript]
+----
+export class Service<T> {
+  readonly _isWorking = signal(false);
+  readonly _result = signal<T>({} as T);
+  readonly _error = signal<object | null>(null);
+  readonly result = this._result.asReadonly();
+
+  constructor(
+    private readonly defaultValue: T,
+    protected resourceName = '',
+    protected apiUrl: string = environment.apiBaseUrl,
+  ) {}
+
+  execute(
+    observable: Observable<unknown>,
+    callback: Callback = {},
+    updateResults = true,
+    showToast = false,
+  ): void {
+    // Maneja suscripción, éxito, error y toasts
+  }
+}
+----
+
+== Servicios InMemory vs JSON-Server
+
+Los servicios tienen dos implementaciones:
+1. *Regular Service*: Usa `HttpClient` para hacer peticiones a un JSON-Server (o API real).
+2. *InMemory Service*: Usa un `Map` local con datos mock, simula delay con `delay(500)`.
+
+=== Ejemplo: `UserService` (JSON-Server)
+
+[source, typescript]
+----
+@Injectable({ providedIn: 'root' })
+export class UserService extends BaseCrudService {
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = `${environment.apiBaseUrl}/users`;
+
+  readonly findAll = createOperation(
+    () => this.http.get<UserDto[]>(this.apiUrl),
+    (err) => this.handleError(err),
+  );
+
+  readonly create = createOperation(
+    (data: UserCreateDto) => this.http.post<UserDto>(this.apiUrl, data),
+    (err) => this.handleError(err),
+    true,
+  ).onSuccess(() => this.findAll());
+}
+----
+
+=== Ejemplo: `UserInMemoryService`
+
+[source, typescript]
+----
+@Injectable({ providedIn: 'root' })
+export class UserInMemoryService extends BaseCrudService {
+  public store = new Map<number, UserDto>(MOCK_USERS.map((u) => [u.id, u]));
+  private nextId = MOCK_USERS.length + 1;
+
+  readonly findAll = createOperation(
+    () => {
+      const query = this.criteria?.value?.query;
+      if (query) {
+        // Filtrado local por query
+        const lowerQuery = query.toLowerCase();
+        const filtered = [...this.store.values()].filter(u =>
+          u.fullName.toLowerCase().includes(lowerQuery) ||
+          u.documentNumber.toLowerCase().includes(lowerQuery)
+        );
+        return this.pipe(of(filtered));
+      }
+      return of([...this.store.values()]);
+    },
+    (err) => this.handleError(err),
+  );
+
+  protected override pipe<R>(source: Observable<R>): Observable<R> {
+    return source.pipe(delay(500)); // Simula latencia
+  }
+}
+----
+
+== Switching entre InMemory y JSON-Server
+
+Se usa `InjectionToken` y la configuración de `environment.ts`:
+
+=== Tokens de Servicio (`service.tokens.ts`)
+
+[source, typescript]
+----
+export const USER_SERVICE_TOKEN = new InjectionToken<UserService | UserInMemoryService>(
+  'USER_SERVICE_TOKEN',
+);
+
+// En el módulo/componente que usa el servicio:
+providers: [
+  {
+    provide: USER_SERVICE_TOKEN,
+    useClass: environment.useInMemory ? UserInMemoryService : UserService,
+  },
+]
+----
+
+=== Configuración de Environment
+
+[source, typescript]
+----
+// environment.ts
+export interface AppConfig {
+  apiBaseUrl: string;
+  useInMemory: boolean;
+}
+
+export const environment: AppConfig = {
+  apiBaseUrl: 'http://localhost:3000/api',
+  useInMemory: true, // true = usa InMemory, false = usa JSON-Server
+};
+----
+
+== Base CRUD (`crud/base-crud.service.ts`)
+
+Clase abstracta que configura `SearchCriteriaService` y `PageService`:
+
+[source, typescript]
+----
+export abstract class BaseCrudService {
+  configure(options: { criteria?: SearchCriteriaService; page?: PageService }) {
+    this._criteria = options.criteria;
+    this._page = options.page;
+  }
+
+  protected abstract handleError<R>(err: unknown): Observable<R>;
+  protected abstract pipe<R>(source: Observable<R>): Observable<R>;
+}
+----
+
+== Patrones Observados
+
+- Las operaciones se ejecutan automáticamente cuando cambian los criterios de búsqueda (vía `effect()` en el explorer).
+- Los servicios InMemory usan `Map` para almacenamiento local y simulan latencia.
+- El refresco de lista se hace en `onSuccess` de `create`/`patch`/`delete`.

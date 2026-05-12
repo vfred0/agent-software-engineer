@@ -1,0 +1,176 @@
+= Shared: Filter Bar Component
+:toc:
+:icons: font
+
+== Ubicación==
+
+El componente está en `src/app/shared/components/filter-bar/`.
+
+== Inputs/Outputs==
+
+[source, typescript]
+----
+filter = input<Filter>(dateFilter); // Configuración de filtros (de core/models/filters/)
+searchCriteria = model<SearchCriteria>({} as SearchCriteria); // Criterios compartidos
+pageService = inject(PageService);       // Paginación
+dynamicOptions = input(false);          // Si permite filtros dinámicos
+searchable = input(false);           // Si muestra búsqueda
+----
+
+== Estructura de la Plantilla==
+
+Se divide en 2 filas (BEM: `filter-bar__top-row`, `filter-bar__bottom-row`):
+
+1. *Top Row*: Búsqueda + botón de acción + (en mobile) botón de filtros + paginación.
+2. *Bottom Row*: `KbqFilterBar` inline (desktop) o sidepanel (mobile).
+
+== Comportamiento por Breakpoint==
+
+[source, scss]
+----
+// Desktop: todo en una fila
+.filter-bar__top-row, .filter-bar__bottom-row { display: contents; }
+
+// Mobile: top-row=column, bottom-row=none
+@media (max-width: 767px) {
+  .filter-bar { flex-direction: column; }
+  .filter-bar__bottom-row { display: none; } // Oculta filtros inline
+  .filter-bar__search-row { display: flex; } // Búsqueda + botón filtros
+}
+----
+
+== Búsqueda (`searchable`)==
+
+Usa `app-input` con `formGroupKey='search'` y `debounceTime(500)`:
+
+[source, typescript]
+----
+// En filter-bar.component.ts
+this.form.valueChanges
+  .pipe(debounceTime(500))
+  .subscribe((value: Partial<{ search: string }>) => {
+    this.updateSearchCriteria({ query: value.search });
+  });
+----
+
+== Filtros (`KbqFilterBar`)==
+
+- Recibe `filter` (un `KbqFilter` creado con `createFilter()`).
+- Convierte cambios a `SearchCriteria.filters` mediante `mapFilters()`:
+
+[source, typescript]
+----
+protected onFilterChange(kbqFilter: KbqFilter | unknown): void {
+  const castKbqFilter = kbqFilter as KbqFilter;
+  let filters = mapFilters(castKbqFilter);  // a formato plano
+
+  // Aplica valores por defecto si el usuario vacía un filtro
+  filters.forEach((filter, index) => {
+    if (filter.value.length === 0) {
+      const defaultFilters = mapFilters(this.filter()!.default);
+      const defaultFilter = defaultFilters.find(f => f.id === filter.id);
+      if (defaultFilter) filters[index].value = defaultFilter.value;
+    }
+  });
+
+  // Filtra por visibilidad (FilterRule)
+  filters = filters.filter(f => this.isFilterVisible(f.id));
+  this.updateSearchCriteria({ filters });
+}
+----
+
+== Visibilidad de Filtros (`FilterRule`)==
+
+Las reglas en `filter.rules` controlan qué filtros mostrar:
+
+[source, typescript]
+----
+protected isFilterVisible(filterType: string): boolean {
+  const rule = this.filterRules()?.find(r => r.filter === filterType);
+  return !rule || rule.visible;  // si no hay regla, visible
+}
+
+private updateVisibility(kbqFilter: KbqFilter): void {
+  this.filterRules()?.forEach(rule => {
+    if (rule.dependsOn?.filter) {
+      const pipe = kbqFilter.pipes.find(p => p.filterName === rule.dependsOn.filter);
+      const selectedValues = pipe!.value as KbqPipe[];
+      rule.visible = selectedValues?.length === 1 && 
+                    rule.dependsOn.values.includes(selectedValues[0].id as string);
+    }
+  });
+}
+----
+
+== Paginación (`app-pagination`)==
+
+Se muestra si `pageService.pages > 1`. El explorador emite `pageChange`:
+
+[source, typescript]
+----
+protected onPageChange(page: number): void {
+  this.updateSearchCriteria({ page });
+}
+
+// En la plantilla
+@if (pageService.pages > 1) {
+  <app-pagination (pageChange)="onPageChange($event)" [totalPages]="pageService.pages" />
+}
+----
+
+== Sidepanel de Filtros (Mobile)==
+
+En mobile, el botón "sliders" abre un `kbq-sidepanel` con los mismos filtros:
+
+[source, typescript]
+----
+protected openFilterPanel(): void {
+  this.sidepanelService.open(this.filterSidepanel, {
+    size: KbqSidepanelSize.Small,
+    hasBackdrop: true,
+    position: KbqSidepanelPosition.Top,
+  });
+}
+----
+
+== `SearchCriteriaService` (Puente)==
+
+El filter-bar actualiza el `SearchCriteriaService` que está inyectado en el explorador:
+
+[source, typescript]
+----
+private updateSearchCriteria(updates: Partial<SearchCriteria>): void {
+  this.searchCriteria.update(current => ({
+    ...current,       // preserva query, filters, page existentes
+    ...updates,      // sobreescribe solo lo que cambió
+  }));
+  this.searchCriteriaService.value = this.searchCriteria(); // notifica al servicio
+}
+----
+
+== `PageService` (Paginación)==
+
+Se inyecta y se actualiza desde el componente que usa el filter-bar (explorador):
+
+[source, typescript]
+----
+// En el explorador
+providers: [SearchCriteriaService, PageService]
+
+// En filter-bar.component.ts
+pageService = inject(PageService); // comparte la misma instancia
+----
+
+== Uso en Explorer (Ejempo con `user-explorer.component.ts`)==
+
+[source, html]
+----
+<app-filter-bar [filter]="userFilter" [searchable]="true">
+  <app-button slot="action" (action)="create()" text="Crear usuario" />
+</app-filter-bar>
+----
+
+El explorador:
+1. Inyecta `SearchCriteriaService` y `PageService` en sus `providers`.
+2. Pasa `userFilter` (de `core/models/filters/user.filter.ts`) al filter-bar.
+3. El filter-bar actualiza `searchCriteriaService.value` → el servicio reacciona.

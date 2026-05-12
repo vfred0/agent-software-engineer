@@ -1,0 +1,216 @@
+= Navbar: Desktop (+ Sidebar) y Mobile
+:toc:
+:icons: font
+
+== Ubicación
+
+El navbar está en `src/app/shared/components/navbar/`.
+
+== Estructura de Carpetas
+
+[source, bash]
+----
+shared/components/navbar/
+├── navbar.component.ts       # Componente contenedor
+├── navbar.component.html     # Plantilla contenedora
+├── desktop-navbar/          # Navbar para escritorio (+ sidebar)
+│   ├── desktop-navbar.component.ts
+│   └── desktop-navbar.component.html
+└── mobile-navbar/           # Navbar para móvil
+    ├── mobile-navbar.component.ts
+    └── mobile-navbar.component.html
+----
+
+== Navbar Contenedor (`navbar.component.ts`)
+
+Decide qué navbar mostrar según el breakpoint y gestiona el scroll:
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-navbar',
+  imports: [DesktopNavbarComponent, MobileNavbarComponent, /* ... */],
+  templateUrl: './navbar.component.html',
+})
+export class NavbarComponent implements OnDestroy, OnInit {
+  @ViewChild('mainScrollContainer') mainScrollContainer!: ElementRef<HTMLElement>;
+  protected isContentScrolled = signal(false);
+
+  ngOnInit() {
+    // Detecta scroll para cambiar estilo del navbar
+    fromEvent(this.mainScrollContainer.nativeElement, 'scroll')
+      .pipe(debounceTime(10), takeUntil(this.destroy$))
+      .subscribe(() => this.checkScroll());
+  }
+
+  private checkScroll() {
+    const isScrolled = this.mainScrollContainer.nativeElement.scrollTop > 0;
+    this.isContentScrolled.set(isScrolled);
+  }
+}
+----
+
+.En la plantilla (`navbar.component.html`)
+[source, html]
+----
+<div #mainScrollContainer class="o-layout-fill-available" style="overflow-y: auto;">
+  @if (breakpointService.isMobile()) {
+    <app-mobile-navbar />
+  } @else {
+    <app-desktop-navbar />
+  }
+
+  <router-outlet />
+</div>
+----
+
+== Desktop Navbar (`desktop-navbar.component.ts`)
+
+Diseñado para pantallas grandes, incluye *sidebar* integrado:
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-desktop-navbar',
+  host: { style: 'display: contents;' }, // No añade elementos extra
+  imports: [KbqNavbarModule, RouterLink, /* ... */],
+  templateUrl: './desktop-navbar.component.html',
+})
+export class DesktopNavbarComponent {
+  protected readonly menuService = inject(MenuService);
+  protected readonly authService = inject(AuthService);
+  protected readonly themeManager = inject(ThemeManagerService);
+
+  signOut() {
+    this.authService.logout();
+    this.router.navigate([RoutePath.SignIn]);
+  }
+}
+----
+
+.En la plantilla (ejemplo de sidebar + menú)
+[source, html]
+----
+<kbq-top-bar-container>
+  <!-- Sidebar / Menú lateral -->
+  <kbq-navbar class="o-layout-column" style="width: 240px;">
+    <kbq-navbar-brand>
+      <app-logo />
+    </kbq-navbar-brand>
+
+    <kbq-navbar-ic>
+      @for (item of menuService.menuItems(); track item.name) {
+        <a kbq-navbar-ic-item [routerLink]="item.redirectTo" routerLinkActive="active">
+          <kbq-icon [name]="item.icon" />
+          <span>{{ item.name }}</span>
+        </a>
+      }
+    </kbq-navbar-ic>
+
+    <kbq-navbar-footer>
+      <button (click)="signOut()">Cerrar Sesión</button>
+    </kbq-navbar-footer>
+  </kbq-navbar>
+
+  <!-- Contenido principal -->
+  <kbq-top-bar>
+    <!-- Barra superior (search, notifications, etc.) -->
+  </kbq-top-bar>
+</kbq-top-bar-container>
+----
+
+== Mobile Navbar (`mobile-navbar.component.ts`)
+
+Adaptado para pantallas pequeñas, usa un indicador activo y menú "Más":
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-mobile-navbar',
+  host: { style: 'display: contents;' },
+  imports: [KbqDropdownModule, RouterLink, /* ... */],
+  templateUrl: './mobile-navbar.component.html',
+})
+export class MobileNavbarComponent {
+  protected readonly menuService = inject(MenuService);
+  protected readonly activeIndex = computed(() => {
+    const items = this.menuService.menuItems();
+    return items.findIndex((item) => this.menuService.isItemActive(item));
+  });
+
+  protected readonly indicatorLeft = signal(0);
+  protected readonly indicatorWidth = signal(0);
+
+  constructor() {
+    afterEveryRender(() => this.updateIndicator());
+  }
+
+  private updateIndicator() {
+    // Calcula posición y ancho del indicador bajo el item activo
+    const activeEl = /* elemento activo */;
+    this.indicatorLeft.set(activeEl.offsetLeft);
+    this.indicatorWidth.set(activeEl.offsetWidth);
+  }
+
+  protected isMoreActive(): boolean {
+    return this.menuService.menuItems()
+      .slice(2) // Items después de los 2 primeros
+      .some((item) => this.menuService.isItemActive(item));
+  }
+}
+----
+
+.En la plantilla (ejemplo de navegación móvil)
+[source, html]
+----
+<!-- Indicador activo (pildora deslizable) -->
+<div #pill class="mobile-indicator" style="left: {{ indicatorLeft() }}px; width: {{ indicatorWidth() }}px;"></div>
+
+<!-- Items visibles (primeros 2) -->
+@for (item of menuService.menuItems().slice(0, 2); track item.name; let i = $index) {
+  <a #navItem (click)="navigateTo(item.redirectTo)">
+    <kbq-icon [name]="item.icon" />
+    <span>{{ item.name }}</span>
+  </a>
+}
+
+<!-- Menú "Más" para items restantes -->
+<kbq-dropdown>
+  <button kbq-dropdown-trigger>Más</button>
+  <kbq-dropdown-content>
+    @for (item of menuService.menuItems().slice(2); track item.name) {
+      <a kbq-dropdown-item (click)="navigateTo(item.redirectTo)">
+        {{ item.name }}
+      </a>
+    }
+  </kbq-dropdown-content>
+</kbq-dropdown>
+----
+
+== Responsive Behavior
+
+El navbar contenedor usa `BreakpointService` para decidir qué navbar renderizar:
+
+[source, typescript]
+----
+// En navbar.component.ts
+protected readonly breakpointService = inject(BreakpointService);
+
+// En la plantilla
+@if (breakpointService.isMobile()) {
+  <app-mobile-navbar />
+} @else {
+  <app-desktop-navbar />
+}
+----
+
+== Estilos
+
+Los estilos del navbar usan las clases BEM/ITCSS definidas en `scss/components/_c-navbar.scss`. Los ajustes específicos para mobile/desktop se hacen mediante media queries o lógica en el componente.
+
+== Patrones Observados
+
+- El navbar contenedor no renderiza UI propia; delega a los componentes hijo.
+- El desktop navbar integra el sidebar dentro del `kbq-navbar` (menú lateral).
+- El mobile navbar usa un indicador deslizable para mejor UX táctil.
+- Ambos navbars inyectan `MenuService` para obtener los items del menú.

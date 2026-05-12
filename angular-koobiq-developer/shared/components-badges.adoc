@@ -1,0 +1,104 @@
+= Shared: Badges Components
+:toc:
+:icons: font
+
+== Ubicación==
+
+Todos los badges están en `src/app/shared/components/badges/`. Todos usan `BadgeComponent` como base.
+
+== `phone-badge.component.ts`==
+
+Inputs: `value` (string, default: '123456789'), `color` (default: 'fade-contrast').
+
+Comportamiento: Muestra el número de teléfono como enlace `tel:` clickeable.
+
+[source, html]
+----
+<app-badge [color]="color()" [tooltip]="'' + value()">
+  <div class="kbq-badge-caption-strong">
+    <a class="kbq-link_external" href="tel:{{ value() }}" rel="noopener" target="_parent">
+      {{ value() }}
+    </a>
+  </div>
+</app-badge>
+----
+
+== `date-badge.component.ts`==
+
+Inputs: `value` (DateTime), `label` (string opcional), `color` (default: 'fade-contrast'), `withRelativeTime` (boolean, default: true).
+
+Comportamiento: Muestra la fecha formateada. Si `withRelativeTime=true`, muestra tiempo relativo (ej. "hace 3 horas") y el tooltip muestra la fecha completa. Si `withRelativeTime=false`, muestra la fecha formateada directamente.
+
+Usa `ParseDate` de `core/utils/parse-date` para formateo.
+
+[source, typescript]
+----
+import { ParseDate } from '@core/utils/parse-date';
+import { DateTime } from 'luxon';
+
+export class DateBadgeComponent {
+  value = input<DateTime>(DateTime.now());
+  label = input('');
+  color = input('fade-contrast');
+  withRelativeTime = input(true);
+
+  displayDate = computed(() => {
+    if (this.withRelativeTime()) {
+      return ParseDate.toRelativeTime(this.value()); // ej. "hace 3 horas"
+    }
+    return ParseDate.toFormat(this.value()); // ej. "05/05/2026"
+  });
+
+  tooltip = computed(() => {
+    if (this.withRelativeTime()) {
+      return ParseDate.toFormat(this.value()); // tooltip muestra fecha completa
+    }
+    return ParseDate.toRelativeTime(this.value()); // tooltip muestra tiempo relativo
+  });
+}
+----
+
+== `option-badge.component.ts`==
+
+Inputs: `value` (unknown), `options` (Option<unknown>[]), `showLabelStart` (boolean, default: true). 
+
+Comportamiento: Busca la opción por `value` usando `getOptionByValue()`. Muestra el `badgeColor` de la opción. En mobile, muestra solo el nombre con tooltip; en desktop, muestra `label + name` o `name + label`.
+
+[source, typescript]
+----
+export class OptionBadgeComponent {
+  value = input<unknown>();
+  options = input<Option<unknown>[]>([]);
+  showLabelStart = input(true);
+
+  get option(): Option<unknown> {
+    return getOptionByValue(this.value(), this.options());
+  }
+}
+----
+
+[source, html]
+----
+<app-badge [responsive]="true" [color]="option.badgeColor!">
+  @if (breakpointService.isMobile()) {
+    <div kbqTooltip="{{ option.name }}">
+      {{ showLabelStart() ? label() + ' ' + option.name : option.name + ' ' + label() }}
+    </div>
+  } @else {
+    <div>{{ showLabelStart() ? label() + ' ' + option.name : option.name + ' ' + label() }}</div>
+  }
+</app-badge>
+----
+
+== `duration-badge.component.ts`==
+
+Inputs: `duration` (number, default: 1), `color` (default: 'fade-contrast'). 
+
+Comportamiento: Muestra la duración en minutos formateada como "Xh Ym" usando `MinutesHoursPipe`.
+
+[source, html]
+----
+<app-badge [color]="color()" [tooltip]="duration() + ' minutos'">
+  <div class="kbq-badge-caption">{{ duration() | minutesToHours }}</div>
+</app-badge>
+----

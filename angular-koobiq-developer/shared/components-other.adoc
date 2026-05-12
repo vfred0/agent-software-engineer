@@ -1,0 +1,137 @@
+= Shared: Other Components
+:toc:
+:icons: font
+
+== Ubicación==
+
+Todos los componentes están en `src/app/shared/components/`.
+
+== Alert Component (`alert.component.ts`)
+
+Input: `type` ('info' | 'warning' | 'error' | 'success', default: 'info'), `closable` (boolean, default: false).
+
+Outputs: Emite `close()` cuando se cierra.
+
+Comportamiento: Usa `KbqAlert` de Kobiq con animaciones `fade-in` (500ms) y `fade-out` (200ms). Muestra ícono según el tipo: triángulo (warning), triángulo (error), check (success), info (info).
+
+[source, typescript]
+----
+export type AlertType = 'info' | 'warning' | 'error' | 'success';
+
+export class AlertComponent {
+  type = input<AlertType>('info');
+  closable = input(false);
+  isVisible = signal(true);
+
+  alertColor = computed(() => {
+    switch (this.type()) {
+      case 'warning': return KbqAlertColors.Warning;
+      case 'error': return KbqAlertColors.Error;
+      case 'success': return KbqAlertColors.Success;
+      default: return KbqAlertColors.Info;
+    }
+  });
+
+  close() { this.isVisible.set(false); }
+}
+----
+
+[source, html]
+----
+@if (isVisible()) {
+  <kbq-alert [alertColor]="alertColor()" [alertStyle]="KbqAlertStyles.Colored" [compact]="true"
+            animate.enter="fade-in" animate.leave="fade-out">
+    @switch (type()) {
+      @case ('warning') { <i kbq-icon="kbq-triangle-exclamation_16"></i> }
+      @case ('error') { <i kbq-icon="kbq-triangle-exclamation_16"></i> }
+      @case ('success') { <i kbq-icon="kbq-circle-check_16"></i> }
+      @default { <i kbq-icon="kbq-circle-info_16"></i> }
+    }
+    <ng-content /> <!-- Texto del alerta -->
+    @if (closable()) {
+      <i kbq-alert-close-button kbq-icon-button="kbq-xmark-s_16" (click)="close()"></i>
+    }
+  </kbq-alert>
+}
+----
+
+== Pagination Component (`pagination.component.ts`)
+
+Input: `totalPages` (number, default: 10), `page` (model, default: 1).
+
+Comportamiento: Muestra botones de navegación de página. Valid que la página esté entre 1 y `totalPages`. Usa `clamp()` para limitar el valor. Emite `pageChange` cuando cambia.
+
+[source, typescript]
+----
+export class PaginationComponent {
+  totalPages = input<number>(10);
+  page = model<number>(1);
+
+  canGoBack = computed(() => this.page() > 1);
+  canGoForward = computed(() => this.page() < this.totalPages());
+
+  navigateTo(newPage: number): void {
+    this.page.set(this.clamp(newPage, 1, this.totalPages()));
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+}
+----
+
+== Popover Actions Component (`popover-actions.component.ts`)
+
+Input: `content` (TemplateRef requerido), `withLabel` (boolean, default: true), `icon` (string, default: 'eye').
+
+Comportamiento: Botón que abre un `KbqPopover` con las acciones. En mobile, permite agrupar acciones en un popover para ahorrar espacio.
+
+[source, typescript]
+----
+export class PopoverActionsComponent {
+  content = input.required<TemplateRef<unknown>>();
+  withLabel = input(true);
+  icon = input('eye');
+
+  iconClass = computed(() => `kbq-${this.icon()}_16`);
+  popoverTrigger = viewChild.required<KbqPopoverTrigger>('kbqPopover');
+
+  hide(): void {
+    this.popoverTrigger().hide(0);
+  }
+}
+----
+
+[source, html]
+----
+<ng-template #titleContent>
+  @if (withLabel()) {
+    <div class="kbq-text-normal-strong">Acciones</div>
+  }
+</ng-template>
+
+<button #kbqPopover="kbqPopover" kbq-button [kbqPopoverContent]="content()" [kbqPopoverHeader]="titleContent">
+  <i kbq-icon="" [class]="iconClass()"></i>
+</button>
+----
+
+== Loader Component==
+
+No se encontró un archivo `loader.component.ts` en el proyecto. En su lugar, se usan directamente los skeletons de Kobiq (`kbq-skeleton`) con las clases BEM `c-skeleton-table`, `c-skeleton-table__header`, `c-skeleton-table__row` definidas en `scss/components/components/_c-skeleton.scss`.
+
+Ejemplo de uso en explorer:
+[source, html]
+----
+<div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+  <div class="c-skeleton-table__header">
+    <kbq-skeleton [style.height.px]="20" />
+    <kbq-skeleton [style.height.px]="20" />
+  </div>
+  @for (_ of Array.from({ length: 8 }); track $index) {
+    <div class="c-skeleton-table__row">
+      <kbq-skeleton [style.height.px]="20" />
+      <kbq-skeleton [style.height.px]="20" />
+    </div>
+  }
+</div>
+----

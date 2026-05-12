@@ -1,0 +1,291 @@
+= SCSS: BEM + ITCSS
+:toc:
+:icons: font
+
+== Ubicación
+
+Todos los estilos están en `src/app/scss/` y siguen la arquitectura ITCSS.
+
+== Estructura ITCSS
+
+ITCSS (Inverted Triangle CSS) organiza los estilos de menor a mayor especificidad:
+
+[source, bash]
+----
+scss/
+├── settings/          # Variables, configuraciones (sin CSS directo)
+│   ├── _breakpoints.scss
+│   ├── _color-palette.scss
+│   ├── _measures.scss
+│   └── _z-index.scss
+├── tools/            # Mixins, funciones (sin CSS directo)
+│   ├── _functions.scss
+│   └── _mixins.scss
+├── generic/          # Resets, normalizaciones (baja especificidad)
+│   └── _generic.scss
+├── elements/         # Elementos HTML base (baja especificidad)
+│   └── _elements.scss
+├── objects/          # Objetos de layout reutilizables (clases con prefijo `o-`)
+│   ├── _objects.scss
+│   ├── _o-layout.scss
+│   └── _o-text.scss
+├── components/       # Componentes UI (clases con prefijo `c-`, usa BEM)
+│   ├── components/
+│   │   ├── _c-button.scss
+│   │   ├── _c-navbar.scss
+│   │   └── ... más componentes
+│   └── _components.scss
+└── _index.scss      # Punto de entrada principal
+----
+
+== Punto de Entrada (`_index.scss`)
+
+[source, scss]
+----
+@use "tools/tools";
+@use "settings/settings";
+@use "generic/generic";
+@use "elements/elements";
+@use "objects/objects";
+@use "components/components";
+----
+
+== Convenciones BEM
+
+BEM (Block Element Modifier) se usa para nombrar clases de componentes:
+
+- *Block*: Componente independiente (ej. `c-button`, `c-skeleton-table`)
+- *Element*: Parte de un block (ej. `c-skeleton-table__header`, `c-consultation-card__row`)
+- *Modifier*: Variante de un block/element (ej. `c-button--primary`, `c-navbar--mobile`)
+
+=== Ejemplos de BEM en el Proyecto
+
+==== Componente Skeleton Table (`c-skeleton-table`)
+
+Usado para mostrar estados de carga en exploradores.
+
+[source, html]
+----
+<div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+  <div class="c-skeleton-table__header">
+    @for (_ of [1, 2, 3, 4, 5]; track $index) {
+      <kbq-skeleton [style.height.px]="20" />
+    }
+  </div>
+  @for (_ of Array.from({ length: 8 }); track $index) {
+    <div class="c-skeleton-table__row">
+      @for (_ of [1, 2, 3, 4, 5]; track $index) {
+        <kbq-skeleton [style.height.px]="20" />
+      }
+    </div>
+  }
+</div>
+----
+
+==== Animaciones de Transición (`c-animate-in`, `c-animate-out`)
+
+Definidas en `_c-skeleton.scss`:
+
+[source, scss]
+----
+@keyframes cFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes cFadeSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+    filter: blur(2px);
+  }
+}
+
+.c-animate-in {
+  animation: cFadeSlideIn 850ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.c-animate-out {
+  animation: cFadeSlideOut 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+----
+
+==== Contenedor de Transición (`c-transition-grid`)
+
+Permite superponer elementos para transiciones suaves:
+
+[source, scss]
+----
+.c-transition-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow-y: hidden;
+  > * {
+    grid-area: 1 / 1; // Todos los hijos en la misma celda
+  }
+}
+----
+
+Uso en explorador:
+[source, html]
+----
+<div class="c-transition-grid">
+  @if (isLoading()) {
+    <div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+      <!-- skeleton -->
+    </div>
+  } @else {
+    @if (hasData()) {
+      <table animate.enter="c-animate-in" animate.leave="c-animate-out">
+        <!-- tabla real -->
+      </table>
+    } @else {
+      <kbq-empty-state animate.enter="c-animate-in" animate.leave="c-animate-out">
+        <!-- estado vacío -->
+      </kbq-empty-state>
+    }
+  }
+</div>
+----
+
+==== Componente Consultation Card (`c-consultation-card`)
+
+[source, html]
+----
+<div class="c-consultation-card">
+  <div class="c-consultation-card__row">
+    <div class="c-consultation-card__label">Paciente</div>
+    <div class="c-consultation-card__value">{{ patient().fullName }}</div>
+  </div>
+</div>
+----
+
+== Objetos de Layout (Prefijo `o-`)
+
+Clases de layout reutilizables, sin diseño visual específico:
+
+=== Ejemplos
+
+[source, css]
+----
+/* _o-layout.scss */
+.o-layout-row {
+  display: flex;
+  flex-direction: row;
+  gap: var(--kbq-size-m);
+}
+
+.o-layout-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kbq-size-l);
+}
+
+.o-layout-fill-available {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+----
+
+=== Uso en Plantillas
+
+[source, html]
+----
+<div class="o-layout-column" style="gap: var(--kbq-size-xl);">
+  <!-- contenido -->
+</div>
+
+<div class="o-layout-row">
+  <app-input class="o-layout-fill-available" />
+  <app-select class="o-layout-fill-available" />
+</div>
+----
+
+== Settings (Variables)
+
+Archivos de configuración sin generar CSS directo:
+
+=== Ejemplo: `_breakpoints.scss`
+
+[source, scss]
+----
+$bp-mobile: 767px;
+$bp-tablet: 1024px;
+$bp-desktop: 1200px;
+----
+
+=== Ejemplo: `_color-palette.scss`
+
+[source, scss]
+----
+$kbq-foreground-contrast-secondary: var(--kbq-foreground-contrast-secondary);
+$kbq-text-compact-strong: var(--kbq-text-compact-strong);
+----
+
+== Tools (Mixins y Funciones)
+
+Mixins y funciones reutilizables, sin generar CSS directo:
+
+=== Ejemplo: `_mixins.scss`
+
+[source, scss]
+----
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == mobile {
+    @media (max-width: $bp-mobile) { @content; }
+  }
+  // ... otros breakpoints
+}
+----
+
+== Generic y Elements
+
+- *Generic*: Resets, box-sizing, márgenes globales.
+- *Elements*: Estilos para `h1`, `p`, `a`, `table` (baja especificidad).
+
+== Reglas de Organización de Estilos
+
+1. *Prioridad*: Todo lo posible va en `scss/`.
+2. *Excepciones*: Si es estrictamente necesario, usar:
+   - Inline styles (solo para valores dinámicos únicos, ej. `--custom-var: value`)
+   - Estilos a nivel de componente (en el metadato `styles` del `@Component`)
+3. *Prohibido*: Estilos inline para propiedades estáticas que pertenecen a un componente reutilizable.
+
+=== Ejemplo de Estilo en Componente (Cuando es Necesario)
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-filter-bar',
+  styles: `
+    :host {
+      display: flex;
+      flex-direction: row;
+      gap: var(--kbq-size-m);
+    }
+    @media (max-width: 767px) {
+      :host { flex-direction: column; }
+    }
+  `,
+})
+----
+
+== Patrones Observados
+
+- Los componentes de UI usan clases con prefijo `c-` (ej. `c-button`, `c-navbar`).
+- Los objetos de layout usan prefijo `o-` y son agnósticos al diseño.
+- Se usan variables CSS de Kobiq (`--kbq-size-*`, `--kbq-foreground-*`) para consistencia.
+- Las media queries para responsive se manejan tanto en SCSS como en lógica del componente (`breakpointService.isMobile()`).

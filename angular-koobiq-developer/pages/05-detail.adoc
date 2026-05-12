@@ -1,0 +1,231 @@
+= Detail: Visualización, Comunicación con Explorer, Exploradores Anidados
+:toc:
+:icons: font
+
+== Ubicación
+
+Los detalles están en `src/app/pages/*/detail/` (ej. `user/detail/`, `treatments/detail/`).
+
+== Estructura de un Detail Típico
+
+[source, bash]
+----
+pages/
+├── user/
+│   ├── detail/
+│   │   ├── user.component.ts      # Componente principal (se abre en sidepanel)
+│   │   ├── user.form.ts          # Formulario dinámico
+│   │   └── user-history.component.ts
+│   └── explorer/
+└── (otros páginas)
+----
+
+== Recepción de Datos desde Explorer
+
+El explorador pasa datos al detail mediante `KbqSidepanelService.open()` con el objeto `data`:
+
+=== Apertura desde Explorer
+
+[source, typescript]
+----
+// En user-explorer.component.ts
+private openSidepanel(user: Partial<UserDto>, inEditMode: boolean, mode: 'edit' | 'history') {
+  this.sidePanelService.open(UserComponent, {
+    data: { user, inEditMode, mode },
+    size: KbqSidepanelSize.Medium,
+  });
+}
+----
+
+=== Recepción en Detail
+
+El detail inyecta `KBQ_SIDEPANEL_DATA` para acceder a los datos:
+
+[source, typescript]
+----
+// En user.component.ts
+protected panelData = inject(KBQ_SIDEPANEL_DATA);
+
+// Acceder a datos
+inEditMode(): boolean {
+  return this.panelData.inEditMode;
+}
+
+isHistoryMode(): boolean {
+  return this.panelData.mode === 'history';
+}
+----
+
+== Actualización de Datos
+
+Cuando el detail edita/crea un item, el servicio notifica al explorador para que refresque la lista:
+
+=== Flujo de Actualización
+
+1. El detail ejecuta `service.patch()` o `service.create()`.
+2. En `onSuccess` de la operación, el servicio llama a `this.findAll()` para refrescar la lista.
+3. Como el explorador tiene un `effect()` que llama a `this.service.findAll()`, la tabla se actualiza automáticamente.
+
+=== Ejemplo en Treatment Detail
+
+[source, typescript]
+----
+// En treatment-detail.component.ts
+onSubmit() {
+  const operation = this.panelData.inEditMode
+    ? this.service.patch(this.panelData.entity.id, payload)
+    : this.service.create(payload);
+
+  operation.onSuccess(() => {
+    this.consultationService.findAll(); // Refresca servicios relacionados
+    this.kbqSidepanelService.closeAll(); // Cierra el sidepanel
+  });
+}
+----
+
+== Visualización de Datos Relacionados
+
+El detail usa `computed` para filtrar datos relacionados de otros servicios:
+
+[source, typescript]
+----
+// En user.component.ts
+userConsultations = computed(() => {
+  const consults = this.consultationService.findAll.result() || [];
+  return consults.filter((c: ConsultationDto) =>
+    String(c.userId) === String(this.panelData.user?.id)
+  );
+});
+
+userTreatments = computed(() => {
+  const treatments = this.treatmentService.findAll.result() || [];
+  return treatments.filter((t: TreatmentDto) =>
+    String(t.userId) === String(this.panelData.user?.id)
+  );
+});
+----
+
+== Exploradores Anidados en Detail
+
+Algunos detalles contienen pestañas con exploradores anidados que actualizan los datos del detail padre.
+
+=== Ejemplo: Treatment Detail con Sesiones
+
+`treatment-detail.component.ts` tiene una pestaña "Sesiones" que carga `app-treatment-session-list`:
+
+[source, html]
+----
+<kbq-tab label="Sesiones">
+  <div style="padding-top: var(--kbq-size-l);">
+    <app-treatment-session-list
+      [treatmentId]="this.panelData.entity.id"
+      [userId]="this.panelData.entity.userId"
+      [isReadOnly]="isReadOnly()"
+    />
+  </div>
+</kbq-tab>
+----
+
+Cuando el explorador anidado busca/crea/elimina sesiones:
+1. El explorador anidado usa sus propios `SearchCriteriaService` y `PageService`.
+2. Al actualizar, los `computed` del detail padre se reevalúan automáticamente porque dependen de `service.findAll.result()`.
+3. El detail muestra los datos actualizados sin recargar la página.
+
+=== Pestaña de Historial en User Detail
+
+`user.component.ts` tiene un modo `history` que muestra `app-user-history` con consultas y tratamientos:
+
+[source, html]
+----
+@if (isHistoryMode()) {
+  <app-user-history
+    [consultations]="userConsultations()"
+    [treatments]="userTreatments()"
+    (actionViewConsultation)="viewConsultation($event)"
+    (actionViewTreatment)="viewTreatment($event)"
+  />
+}
+----
+
+== Formularios en Detail
+
+El detail usa formularios dinámicos que heredan el `FormGroup` del padre:
+
+=== Ejemplo: User Form
+
+[source, typescript]
+----
+// user.form.ts
+@Component({
+  selector: 'app-user-form',
+  viewProviders: [
+    {
+      provide: ControlContainer,
+      useFactory: () => inject(ControlContainer, { skipSelf: true }),
+    },
+  ],
+  template: `
+    <kbq-tab-group>
+      <kbq-tab label="Datos Personales">
+        <app-input formGroupKey="fullName" label="Nombres" [required]="true" />
+        <!-- más campos -->
+      </kbq-tab>
+      <kbq-tab label="Contacto">
+        <app-input formGroupKey="phone" label="Teléfono" type="phone" />
+      </kbq-tab>
+    </kbq-tab-group>
+  `,
+})
+export default class UserFormComponent {
+  allergyOptions = input.required<Option<Allergy>[]>();
+}
+----
+
+== Modo Solo Lectura vs Edición
+
+El detail adapta su UI según `inEditMode` y `isReadOnly()`:
+
+[source, html]
+----
+@if (this.inEditMode()) {
+  @if (isReadOnly()) {
+    <!-- Mostrar datos como texto plano (description list) -->
+    <kbq-dl>
+      <kbq-dt>Descripción</kbq-dt>
+      <kbq-dd>{{ panelData.entity.description }}</kbq-dd>
+    </kbq-dl>
+  } @else {
+    <!-- Mostrar formulario -->
+    <form [formGroup]="form" (ngSubmit)="onSubmit()">
+      <!-- campos -->
+    </form>
+  }
+} @else {
+  <!-- Modo crear: solo formulario -->
+  <form [formGroup]="form" (ngSubmit)="onSubmit()">
+    <!-- campos -->
+  </form>
+}
+----
+
+== Cierre de Sidepanel
+
+Al terminar una operación exitosa, se cierra el sidepanel:
+
+[source, typescript]
+----
+onSubmit() {
+  const op = this.panelData.inEditMode
+    ? this.service.patch(this.panelData.user.id, this.form.value)
+    : this.service.create(this.form.value);
+
+  op.onSuccess(() => this.kbqSidepanelService.closeAll());
+}
+----
+
+== Patrones Observados
+
+- El detail *nunca* hace fetch directo de sus datos; los recibe via `KBQ_SIDEPANEL_DATA`.
+- Los datos relacionados se calculan reactivamente con `computed` basados en resultados de servicios.
+- Los exploradores anidados usan sus propios proveedores de criterios, aislados del padre.
+- El servicio es el único responsable de refrescar listas tras mutaciones.

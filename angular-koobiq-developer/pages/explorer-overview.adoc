@@ -1,0 +1,132 @@
+= Explorer: Overview, Structure, Skeleton, Badges
+:toc:
+:icons: font
+
+== Ubicación
+
+Los exploradores están en `src/app/pages/*/explorer/` (ej. `user/explorer/`, `treatments/explorer/`).
+
+== Estructura de un Explorer Típico
+
+Los exploradores:
+1. Usan `app-filter-bar` para búsqueda y filtros.
+2. Muestran datos en una tabla (Kobiq `kbq-table`) o grid.
+3. Abren un sidepanel para crear/editar items.
+4. Se suscriben a servicios mediante `Operation` signals (ej. `findAll`, `findAll.isLoading()`).
+5. Usan `c-transition-grid` para transiciones suaves entre skeleton → tabla → empty-state.
+6. Badges en tabla para datos coloreados (ej. `app-option-badge` con `badgeColor`).
+
+=== Ejemplo: `consultation-explorer.component.ts`
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-consultation-explorer',
+  providers: [SearchCriteriaService, PageService],
+  template: `
+    <div class="o-layout-column" style="gap: var(--kbq-size-xl);">
+      <app-filter-bar [searchable]="true" />
+
+      <!-- Contenedor con transición suave -->
+      <div class="c-transition-grid">
+        @if (isLoading()) {
+          <!-- SKELETON ANIMADO -->
+          <div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+            <div class="c-skeleton-table__header">
+              <kbq-skeleton [style.height.px]="20" />
+            </div>
+            @for (_ of Array.from({ length: 10 }); track $index) {
+              <div class="c-skeleton-table__row">
+                <kbq-skeleton [style.height.px]="20" />
+              </div>
+            }
+          </div>
+        } @else {
+          @if (filteredConsultations().length > 0) {
+            <table kbq-table animate.enter="c-animate-in" animate.leave="c-animate-out">
+              <thead>
+                <tr>
+                  <th>Paciente</th>
+                  @if (!breakpointService.isMobile()) {
+                    <th>Motivos</th>
+                  }
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of filteredConsultations(); track c.id) {
+                  <tr>
+                    <td>{{ getPatientName(c) }}</td>
+                    @if (!breakpointService.isMobile()) {
+                      <td>
+                        <!-- BADGE CON COLOR SEGÚN ENUM -->
+                        @for (reason of c.reasons; track reason) {
+                          <app-option-badge 
+                            [options]="ConsultationReasonOptions"
+                            [value]="reason"
+                          />
+                        }
+                      </td>
+                    }
+                    <td>
+                      <app-option-badge 
+                        [options]="ConsultationStatusOptions"
+                        [value]="c.status"
+                      />
+                    </td>
+                    <td>
+                      <app-button (action)="openDetail(c)" variant="edit" />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <kbq-empty-state animate.enter="c-animate-in" animate.leave="c-animate-out">
+              <div kbq-empty-state-title>Sin resultados</div>
+            </kbq-empty-state>
+          }
+        }
+      </div>
+    </div>
+  `,
+})
+export class ConsultationExplorerComponent {
+  protected service = inject(CONSULTATION_SERVICE_TOKEN);
+  protected breakpointService = inject(BreakpointService);
+
+  isLoading = computed(() =>
+    this.service.findAll.isLoading() ||
+    this.otherService.findAll.isLoading()
+  );
+
+  filteredConsultations = computed(() => {
+    const all = (this.service.findAll.result() as ConsultationDto[]) || [];
+    return all;
+  });
+}
+----
+
+== Uso de Badges en la Tabla
+
+Los exploradores usan `app-option-badge` para mostrar datos coloreados según el enum:
+
+[source, html]
+----
+<!-- En consultas: muestra motivos con badgeColor -->
+@for (reason of consultation.reasons; track reason) {
+  <app-option-badge 
+    [options]="ConsultationReasonOptions"
+    [value]="reason"
+  />
+}
+
+<!-- Muestra estado con badgeColor -->
+<app-option-badge 
+  [options]="ConsultationStatusOptions"
+  [value]="consultation.status"
+/>
+----
+
+Esto requiere que las opciones del enum tengan `badgeColor` (ver `core/enums-options-badgeColor.adoc`).

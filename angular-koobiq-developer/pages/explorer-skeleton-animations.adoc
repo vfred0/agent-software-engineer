@@ -1,0 +1,145 @@
+= Explorer: Skeleton & Animations=
+:toc:
+:icons: font
+
+== Ubicación==
+
+Se usa en los exploradores para transiciones suaves entre estados de carga.
+
+== `c-transition-grid`==
+
+Contenedor que superpone elementos para transiciones suaves mediante CSS Grid:
+
+[source, scss]
+----
+.c-transition-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow-y: hidden;
+  > * {
+    grid-area: 1 / 1; // Todos los hijos en la misma celda
+  }
+}
+----
+
+Uso en explorador:
+[source, html]
+----
+<div class="c-transition-grid">
+  @if (isLoading()) {
+    <div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+      <!-- skeleton -->
+    </div>
+  } @else {
+    @if (hasData()) {
+      <table animate.enter="c-animate-in" animate.leave="c-animate-out">
+        <!-- tabla real -->
+      </table>
+    } @else {
+      <kbq-empty-state animate.enter="c-animate-in" animate.leave="c-animate-out">
+        <!-- estado vacío -->
+      </kbq-empty-state>
+    }
+  }
+</div>
+----
+
+== Flujo de Estados==
+
+1. *Carga*: `isLoading()` es true → Muestra `<div class="c-skeleton-table">`.
+2. *Completado con datos*: Muestra `<table>` con animación `c-animate-in`.
+3. *Completado sin datos*: Muestra `<kbq-empty-state>` con animación.
+4. *Cambio de estado*: La animación `c-animate-out` oculta el elemento anterior antes de mostrar el nuevo.
+
+== Skeleton Detallado==
+
+Usa BEM: `c-skeleton-table__header` y `c-skeleton-table__row` para estructura de tabla simulada:
+
+[source, html]
+----
+<div class="c-skeleton-table__header">
+  <kbq-skeleton [style.height.px]="20" /> <!-- Columna 1 -->
+  <kbq-skeleton [style.height.px]="20" /> <!-- Columna 2 -->
+</div>
+@for (_ of Array.from({ length: 8 }); track $index) {
+  <div class="c-skeleton-table__row">
+    <kbq-skeleton [style.height.px]="20" />
+    <kbq-skeleton [style.height.px]="20" />
+  </div>
+}
+----
+
+== Animaciones de Transición (`c-animate-in`, `c-animate-out`)==
+
+Definidas en `_c-skeleton.scss`:
+
+[source, scss]
+----
+@keyframes cFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes cFadeSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+    filter: blur(2px);
+  }
+}
+
+.c-animate-in {
+  animation: cFadeSlideIn 850ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.c-animate-out {
+  animation: cFadeSlideOut 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+----
+
+== Ejemplo Completo en `consultation-explorer.component.ts`==
+
+[source, html]
+----
+<div class="c-transition-grid">
+  @if (isLoading()) {
+    <div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+      <div class="c-skeleton-table__header">
+        @for (_ of [1, 2, 3, 4, 5]; track $index) {
+          <kbq-skeleton [style.height.px]="20" />
+        }
+      </div>
+      @for (_ of Array.from({ length: 10 }); track $index) {
+        <div class="c-skeleton-table__row">
+          @for (_ of [1, 2, 3, 4, 5]; track $index) {
+            <kbq-skeleton [style.height.px]="20" />
+          }
+        </div>
+      }
+    </div>
+  } @else {
+    @if (filteredConsultations().length > 0) {
+      <table kbq-table animate.enter="c-animate-in" animate.leave="c-animate-out">
+        <!-- tabla real -->
+      </table>
+    } @else {
+      <kbq-empty-state animate.enter="c-animate-in" animate.leave="c-animate-out">
+        <!-- estado vacío -->
+      </kbq-empty-state>
+    }
+  }
+</div>
+----

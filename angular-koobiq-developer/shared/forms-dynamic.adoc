@@ -1,0 +1,168 @@
+= Shared: Formularios Dinámicos
+:toc:
+:icons: font
+
+== Ubicación==
+
+Todos los archivos compartidos están en `src/app/shared/`.
+
+== Formularios Dinámicos==
+
+Los formularios dinámicos se implementan mediante:
+1. Componentes de formulario (`app-input`, `app-select`, `app-datepicker`, etc.) que usan `formGroupKey` para vincularse al `FormGroup` padre.
+2. Clase `DynamicControlHandler<T>` (en `shared/components/forms/core/dynamic-control-handler.ts`) que maneja el `FormControl`, validaciones y estado.
+3. Validaciones centralizadas en `shared/components/forms/core/validations.ts` y patrones en `patterns.ts`.
+4. Interfaz `CustomValidator` para validadores con mensaje personalizado.
+
+=== Clase `DynamicControlHandler<T>` (`core/dynamic-control-handler.ts`)
+
+Maneja la creación, validación y estado de un `FormControl` dentro de un `FormGroup` padre.
+
+[source, typescript]
+----
+export class DynamicControlHandler<T = unknown> {
+  control: FormControl = new FormControl();
+  patternConfig: PatternConfig | null = null;
+  pendingValidations: Signal<string[]> = signal([]);
+
+  // Crea control con validadores
+  createInput(parentForm: FormGroup, key: string, validators: CustomValidator[], injector: Injector, validateOnChange = false);
+
+  // Crea control para tipos genéricos (select, datepicker, etc.)
+  createToGenericControl(control: FormGroup, key: string, required: boolean);
+
+  // Crea control sin validadores
+  createInputWithoutValidators(control: FormGroup, key: string);
+
+  // Establece valor por defecto
+  defaultValue(value: T);
+
+  // Verifica si el control es válido según validaciones pendientes
+  isFormControlValid(): boolean;
+
+  // Agrega validador dinámicamente
+  addValidators(validatorFn: ValidatorFn);
+}
+----
+
+=== `CustomValidator` (`core/models.ts`)
+
+Interfaz para validadores con mensaje personalizado:
+
+[source, typescript]
+----
+export interface CustomValidator {
+  validator: ValidatorFn;  // Función validadora de Angular
+  message?: string;      // Mensaje de error personalizado
+}
+
+export interface ValidatorConfig {
+  required: boolean;
+  minLength: number;
+  maxLength: number;
+  customValidators: CustomValidator;
+}
+----
+
+=== `ValidatorBuilder` (`core/validations.ts`)
+
+Construye un array de `CustomValidator[]` basado en configuración:
+
+[source, typescript]
+----
+export class ValidatorBuilder {
+  static build(config: ValidatorConfig): CustomValidator[] {
+    const validators: CustomValidator[] = [];
+
+    if (config.required) {
+      validators.push({ validator: Validators.required, message: 'Campo requerido' });
+    }
+    if (config.minLength > 0) {
+      validators.push({ validator: Validators.minLength(config.minLength), message: `Mínimo ${config.minLength} caracteres` });
+    }
+    // ... más validadores
+    return validators;
+  }
+}
+----
+
+=== `PatternExtractor` y `PatternFilter` (`core/patterns.ts`)
+
+Extraen y filtran caracteres inválidos según el patrón del validador:
+
+[source, typescript]
+----
+// Extrae configuración de patrón de un CustomValidator
+export class PatternExtractor {
+  static extract(validators: CustomValidator[]): PatternConfig | null {
+    for (const v of validators) {
+      const testControl = new FormControl('!!!');
+      const result = v.validator(testControl);
+      if (result?.['pattern']) {
+        // Extrae caracteres permitidos
+        return { regex: ..., restRegex: ..., message: v.message! };
+      }
+    }
+    return null;
+  }
+}
+
+// Filtra caracteres inválidos en tiempo real
+export class PatternFilter {
+  constructor(private control: FormControl, private patternConfig: PatternConfig) {
+    this.setup(); // Suscribe a valueChanges
+  }
+
+  get hasInvalidChar(): Signal<boolean> {
+    return this.invalidCharDetected.asReadonly();
+  }
+
+  private setup() {
+    this.control.valueChanges.subscribe((value) => {
+      if (!value) return;
+      const filtered = value.replace(this.patternConfig.restRegex, '');
+      if (value !== filtered) {
+        this.invalidCharDetected.set(true);
+        // Actualiza el control con valor filtrado
+        queueMicrotask(() => {
+          this.control.setValue(filtered, { emitEvent: true });
+        });
+      }
+    });
+  }
+}
+----
+
+=== Uso de `formGroupKey`
+
+Los componentes de formulario aceptan `formGroupKey` para vincularse a una clave del `FormGroup` padre.
+
+.Ejemplo en `user.form.ts` (detail)
+[source, typescript]
+----
+<app-input
+  formGroupKey="fullName"
+  label="Nombres y apellidos"
+  validationType="alpha"
+  [required]="true"
+/>
+
+<app-select
+  formGroupKey="gender"
+  label="Sexo"
+  [options]="GenderOptions"
+/>
+----
+
+=== Configuración de Formulario Dinámico==
+
+El componente de formulario puede recibir opciones dinámicas mediante `inputs`:
+
+[source, typescript]
+----
+// En el componente padre
+allergyOptions = AllergyOptions.append(this.panelData.user?.allergies || []);
+
+// En la plantilla
+<app-user-form [allergyOptions]="allergyOptions" />
+----

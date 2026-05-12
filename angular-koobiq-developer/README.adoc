@@ -1,0 +1,34 @@
+= Angular Koobiq Developer — Skill
+:toc:
+:icons: font
+
+Skill para agentes de IA que trabajan en proyectos Angular con `@koobiq/components`. Describe los patrones, convenciones y componentes del template.
+
+== Entrypoint para IA
+
+El archivo `SKILL.md` es el punto de entrada para agentes de IA. Define el rol, los documentos de referencia por área y las reglas obligatorias que debe seguir al generar código.
+
+== Documentación de Referencia
+
+== Documentos por Área
+
+. xref:01-core.adoc[Core: Enums, Models, Filters, Mocks]
+. xref:02-shared.adoc[Shared: Formularios Dinámicos, Componentes, Directivas]
+. xref:03-services.adoc[Servicios: Operations, InMemory, JSON-Server]
+. xref:04-explorer.adoc[Explorer: Filtros, Tabla, Sidepanel]
+. xref:05-detail.adoc[Detail: Visualización, Comunicación con Explorer, Exploradores Anidados]
+. xref:06-scss.adoc[SCSS: BEM + ITCSS]
+. xref:07-environment.adoc[Environment: Modo InMemory vs JSON-Server]
+. xref:08-menu.adoc[Menu: Configuración y Router]
+. xref:09-navbar.adoc[Navbar: Desktop (+ Sidebar) y Mobile]
+
+== Ejemplos Prácticos
+
+Los ejemplos de código TypeScript prácticos están en la carpeta xref:angular-template/[`angular-template/`].
+
+== Notas Importantes
+
+- Toda la documentación está basada en el código real del proyecto, no se deducen comportamientos.
+- Se usa Kobiq Components (`@koobiq/components`) como librería de UI.
+- La gestión de estado reactivo usa Angular Signals (`signal`, `computed`, `WritableSignal`).
+- Las operaciones asíncronas usan el patrón `Operation` basado en RxJS y Signals.

@@ -39,14 +39,68 @@ Para que un agente funcione correctamente, debe seguir una estructura de directo
         ├── SKILL.md
 ----
 
+== Instalación
+
+Copiá las skills al directorio de configuración del agente que usás en tu proyecto.
+Ejecutá el comando desde la raíz de tu proyecto destino.
+
+[source,bash]
+.Claude Code (.claude/)
+----
+mkdir -p .claude/skills
+cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .claude/skills/
+----
+
+[source,bash]
+.Gemini CLI (.gemini/)
+----
+mkdir -p .gemini/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .gemini/skills/
+----
+
+[source,bash]
+.GitHub Copilot (.github/)
+----
+mkdir -p .github/skills
+cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .github/skills/
+----
+
+[source,bash]
+.OpenCode (.opencode/)
+----
+mkdir -p .opencode/skills
+cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .opencode/skills/
+----
+
+[source,bash]
+.Cursor (.cursor/)
+----
+mkdir -p .cursor/skills
+cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .cursor/skills/
+----
+
+[source,bash]
+.Windsurf (.windsurf/)
+----
+mkdir -p .windsurf/skills
+cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .windsurf/skills/
+----
+
+[TIP]
+====
+Reemplazá `/path/to/agent-software-engineer/` con la ruta absoluta a este repositorio.
+Para copiar skills individuales, simplemente omitís las que no necesitás del bloque `{}`.
+====
+
 == Funcionamiento
 
-Desde el agente de IA comprobar mediante: 
+Desde el agente de IA verificá que los skills están disponibles con:
 
 [source,text]
 ----
-/software-testing
 /software-engineer
-/documentation-generator
 /software-design
+/software-testing
+/documentation-generator
+/spring-boot-developer
 ----

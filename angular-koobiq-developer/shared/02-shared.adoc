@@ -1,0 +1,784 @@
+= Shared: Formularios Dinámicos, Componentes, Directivas
+:toc:
+:icons: font
+
+== Ubicación
+
+Todos los archivos compartidos están en `src/app/shared/`.
+
+== Estructura de Carpetas
+
+[source, bash]
+----
+shared/
+├── components/                # Componentes compartidos
+│   ├── badges/               # Badges (phone, date, option, etc.)
+│   ├── filter-bar/           # Barra de filtros para exploradores
+│   ├── forms/                # Componentes de formularios dinámicos
+│   │   └── core/            # Lógica core de formularios dinámicos
+│   ├── navbar/               # Navbar (desktop y mobile)
+│   └── pagination/           # Paginación
+├── directives/               # Directivas compartidas
+├── pipes/                    # Pipes compartidos
+└── services/                 # Servicios compartidos (ver sección Servicios)
+----
+
+== Formularios Dinámicos
+
+Los formularios dinámicos se implementan mediante:
+1. Componentes de formulario (`app-input`, `app-select`, `app-datepicker`, etc.) que usan `formGroupKey` para bindear al `FormGroup` padre.
+2. Clase `DynamicControlHandler<T>` (en `shared/components/forms/core/dynamic-control-handler.ts`) que maneja el `FormControl`, validaciones y estado.
+3. Validaciones centralizadas en `shared/components/forms/core/validations.ts` y patrones en `patterns.ts`.
+4. Interfaz `CustomValidator` para validadores con mensaje personalizado.
+
+=== Clase `DynamicControlHandler<T>` (`core/dynamic-control-handler.ts`)
+
+Maneja la creación, validación y estado de un `FormControl` dentro de un `FormGroup` padre.
+
+[source, typescript]
+----
+export class DynamicControlHandler<T = unknown> {
+  control: FormControl = new FormControl();
+  patternConfig: PatternConfig | null = null;
+  pendingValidations: Signal<string[]> = signal([]);
+
+  // Crea control con validadores
+  createInput(parentForm: FormGroup, key: string, validators: CustomValidator[], injector: Injector, validateOnChange = false);
+
+  // Crea control para tipos genéricos (select, datepicker, etc.)
+  createToGenericControl(control: FormGroup, key: string, required: boolean);
+
+  // Crea control sin validadores
+  createInputWithoutValidators(control: FormGroup, key: string);
+
+  // Establece valor por defecto
+  defaultValue(value: T);
+
+  // Verifica si el control es válido según validaciones pendientes
+  isFormControlValid(): boolean;
+
+  // Agrega validador dinámicamente
+  addValidators(validatorFn: ValidatorFn);
+}
+----
+
+=== `CustomValidator` (`core/models.ts`)
+
+Interfaz para validadores con mensaje personalizado:
+
+[source, typescript]
+----
+export interface CustomValidator {
+  validator: ValidatorFn;  // Función validadora de Angular
+  message?: string;      // Mensaje de error personalizado
+}
+
+export interface ValidatorConfig {
+  required: boolean;
+  minLength: number;
+  maxLength: number;
+  customValidators: CustomValidator;
+}
+----
+
+=== `ValidatorBuilder` (`core/validations.ts`)
+
+Construye un array de `CustomValidator[]` basado en configuración:
+
+[source, typescript]
+----
+export class ValidatorBuilder {
+  static build(config: ValidatorConfig): CustomValidator[] {
+    const validators: CustomValidator[] = [];
+
+    if (config.required) {
+      validators.push({ validator: Validators.required, message: 'Campo requerido' });
+    }
+    if (config.minLength > 0) {
+      validators.push({ validator: Validators.minLength(config.minLength), message: `Mínimo ${config.minLength} caracteres` });
+    }
+    if (config.maxLength > 0) {
+      validators.push({ validator: Validators.maxLength(config.maxLength), message: `Máximo ${config.maxLength} caracteres` });
+    }
+    if (config.customValidators) {
+      validators.push(config.customValidators);
+    }
+    return validators;
+  }
+}
+----
+
+=== `PatternExtractor` y `PatternFilter` (`core/patterns.ts`)
+
+Extraen y filtran caracteres inválidos según el patrón del validador:
+
+[source, typescript]
+----
+// Extrae configuración de patrón de un CustomValidator
+export class PatternExtractor {
+  static extract(validators: CustomValidator[]): PatternConfig | null {
+    for (const v of validators) {
+      const testControl = new FormControl('!!!');
+      const result = v.validator(testControl);
+      if (result?.['pattern']) {
+        const requiredPattern = result['pattern'].requiredPattern;
+        // Extrae caracteres permitidos
+        return { regex: new RegExp(...), restRegex: new RegExp(...), message: v.message! };
+      }
+    }
+    return null;
+  }
+}
+
+// Filtra caracteres inválidos en tiempo real
+export class PatternFilter {
+  constructor(private control: FormControl, private patternConfig: PatternConfig) {
+    this.setup(); // Suscribe a valueChanges
+  }
+
+  get hasInvalidChar(): Signal<boolean> {
+    return this.invalidCharDetected.asReadonly();
+  }
+
+  private setup() {
+    this.control.valueChanges.subscribe((value) => {
+      if (!value) return;
+      const filtered = value.replace(this.patternConfig.restRegex, '');
+      if (value !== filtered) {
+        this.invalidCharDetected.set(true);
+        // Actualiza el control con valor filtrado
+        queueMicrotask(() => {
+          this.control.setValue(filtered, { emitEvent: true });
+        });
+      }
+    });
+  }
+}
+----
+
+=== Uso de `formGroupKey`
+
+Los componentes de formulario aceptan `formGroupKey` para vincularse a una clave del `FormGroup` padre.
+
+.Ejemplo en `user.form.ts` (detail)
+[source, typescript]
+----
+<app-input
+  formGroupKey="fullName"
+  label="Nombres y apellidos"
+  validationType="alpha"
+  [required]="true"
+/>
+
+<app-select
+  formGroupKey="gender"
+  label="Sexo"
+  [options]="GenderOptions"
+/>
+----
+
+=== Configuración de Formulario Dinámico
+
+El componente de formulario puede recibir opciones dinámicas mediante `inputs`:
+
+[source, typescript]
+----
+// En el componente padre
+allergyOptions = AllergyOptions.append(this.panelData.user?.allergies || []);
+
+// En la plantilla
+<app-user-form [allergyOptions]="allergyOptions" />
+----
+
+== Componentes Compartidos
+
+=== Catálogo de Componentes de Formulario (`shared/components/forms/`)
+
+Todos los componentes de formulario usan `formGroupKey` para vincularse al `FormGroup` padre mediante `ControlContainer`.
+
+==== `app-input` (`input.component.ts`)
+
+Inputs:
+- `formGroupKey`: string (required) - Clave en el FormGroup padre.
+- `label`: string - Etiqueta del campo.
+- `type`: 'text' | 'password' | 'number' | 'phone' | 'email' | 'cedula_ruc' | 'textarea' (default: 'text').
+- `validationType`: 'alpha' | 'alphanumeric' | 'phone' | 'email' | 'cedula_ruc' | 'paragraph' | null.
+- `placeholder`: string.
+- `required`: boolean (default: false).
+- `minLength`: number (default: 1).
+- `maxLength`: number (default: 100).
+- `validators`: CustomValidator (validadores adicionales).
+- `prefixIcon`: string (ícono Kobiq).
+- `min`: number (para type='number').
+- `max`: number (para type='number').
+- `withThousandSeparator`: boolean (para type='number').
+- `integer`: boolean (para type='number').
+- `showStepper`: boolean (para type='number').
+
+Validación automática por `validationType`:
+- `alpha`: Solo letras (regex: `/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g`), mensaje: 'Solo se permiten letras'.
+- `alphanumeric`: Letras y números (regex: `/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g`).
+- `phone`: Solo números, patrón: `/^(09\d{8}|0[2-8]\d{7})$/`, maxlength=10.
+- `cedula_ruc`: Solo números, patrón: `/^(\d{10}|\d{13})$/`, maxlength=13.
+- `paragraph`: Letras, números y signos de puntuación (regex específico).
+- `email`: Validators.email de Angular.
+- `number`: Valida min/max.
+
+Comportamiento:
+- Filtra caracteres inválidos en tiempo real y muestra mensaje temporal.
+- Convierte a TitleCase para `alpha`/`alphanumeric`/`text`.
+- Primera letra en mayúscula para `paragraph`.
+- Usa `KbqTooltip` manual para mostrar errores.
+
+==== `app-select` (`select.component.ts`)
+
+Inputs:
+- `formGroupKey`: string (required).
+- `label`: string.
+- `options`: Option<T, D>[] (model, puede ser extendible).
+- `multiple`: boolean (default: false) - Selección múltiple.
+- `searchable`: boolean (default: false) - Búsqueda dentro del select.
+- `allowNewOption`: boolean (default: false) - Permite agregar nuevas opciones.
+- `loading`: boolean (default: false) - Muestra skeleton mientras carga.
+- `icon`: string (default: 'gear').
+
+Outputs:
+- `selectChange`: Emite la opción seleccionada (o array para multiple).
+
+Variantes:
+- *Selección simple*: Emite `Option<T> | null`.
+- *Selección múltiple*: Emite `Option<T>[]`, muestra checkboxes.
+- *Con búsqueda*: Incluye campo de búsqueda con resaltado (`KbqHighlightModule`).
+- *Con grupos*: Soporta `optgroups` si las options tienen `options: Option<T>[]`.
+
+Comportamiento:
+- Al inicializar, selecciona la primera opción si el control está vacío.
+- En modo `allowNewOption`, muestra un footer con input y botón para agregar.
+
+==== `app-button` (`button.component.ts`)
+
+Inputs:
+- `variant`: 'default' | 'trash' | 'edit' (default: 'default').
+- `icon`: string (default: 'floppy-disk').
+- `iconPosition`: 'start' | 'end' (default: 'start').
+- `color`: string (default: 'contrast-fade').
+- `text`: string (default: 'Guardar').
+- `type`: 'button' | 'submit' | 'reset' (default: 'button').
+- `disabled`: boolean.
+- `loading`: boolean (muestra spinner).
+- `requireConfirm`: boolean (default: false) - Muestra popover de confirmación.
+
+Outputs:
+- `action`: Emite el evento click.
+
+Variantes automáticas por `variant`:
+- `variant='edit'`: Icono='pencil', texto='Editar', color='contrast-fade'.
+- `variant='trash'`: Icono='trash', texto='Eliminar', color='error', estilo `.btn-trash` con fondo error-fade.
+- `variant='default'`: Usa `icon`, `text` y `color` personalizados.
+
+Confirmación:
+- Si `requireConfirm=true`, al hacer click muestra un `kbqPopover` con "¿Estás seguro?" y botones Aceptar/Cancelar.
+
+==== `app-datepicker` (`datepicker.component.ts`)
+
+Inputs:
+- `formGroupKey`: string (required).
+- `label`: string (default: 'Fecha y hora').
+- `type`: 'datetime' | 'date' | 'time' (default: 'datetime').
+
+Comportamiento:
+- `datetime`: Muestra datepicker + timepicker lado a lado.
+- `date`: Solo datepicker.
+- `time`: Solo timepicker (formato HH:mm).
+- Usa `luxon` para manejo de fechas.
+- Valida `businessHoursValidator()` (días laborables 8:00-18:00).
+- Muestra errores con tooltip.
+
+==== `app-timepicker` (`timepicker.component.ts`)
+
+Inputs:
+- `formGroupKey`: string (required).
+- Formato: HH:mm (usando `TimeFormats.HHmm`).
+
+Comportamiento:
+- Similar a datepicker pero solo tiempo.
+- Usa `luxon DateTime`.
+
+==== `app-switch` (`switch.component.ts`)
+
+Inputs:
+- `formGroupKey`: string (required).
+- `label`: string.
+- `value`: boolean (default: true) - Valor inicial.
+- `loading`: boolean.
+
+Comportamiento:
+- Toggle visual con `KbqToggleModule`.
+- Cambia estilos del wrapper: `.wrapper-active` (verde) vs `.wrapper-inactive` (rojo).
+- Animación fade-in al cambiar estado.
+- Click en el wrapper ejecuta `toggleValue()`.
+
+==== `app-rating` (`rating.component.ts`)
+
+Inputs:
+- `formGroupKey`: string (required).
+- `label`: string.
+- `value`: number (default: 5) - Valor inicial.
+- `totalStars`: number (default: 5).
+- `showAverage`: boolean (default: false) - Muestra badge con promedio.
+
+Comportamiento:
+- Renderiza estrellas SVG con gradiente de llenado parcial.
+- Hover cambia `hoverValue` (signal).
+- Click define el valor en el control.
+- Colores según valor: rojo (<40%), amarillo (<80%), verde (>=80%).
+- Usa `DynamicControlHandler<number>`.
+
+==== `app-form-popover` (`form-popover.component.ts`)
+
+Inputs:
+- `buttonText`: string (default: 'Agregar opción').
+- `buttonIcon`: string (default: 'plus').
+- `closeOnScroll`: boolean.
+
+Outputs:
+- `submitted`: Emite el `FormGroup` cuando se guarda.
+
+Comportamiento:
+- Botón que abre un `kbqPopover` con un formulario (ng-content).
+- Footer con botones Guardar/Cancelar.
+- Valida todos los inputs, selects y datepickers dentro del popover.
+- Al cerrar, resetea todos los controles hijo.
+- Usa `contentChildren` para encontrar controles anidados.
+
+=== Filter Bar (`shared/components/filter-bar/`)
+
+Componente reutilizable para filtros y búsqueda en exploradores.
+
+==== Inputs/Outputs
+
+[source, typescript]
+----
+filter = input<Filter>(dateFilter); // Configuración de filtros (de core/models/filters/)
+searchCriteria = model<SearchCriteria>({} as SearchCriteria); // Criterios compartidos
+pageService = inject(PageService);       // Paginación
+dynamicOptions = input(false);          // Si permite filtros dinámicos
+searchable = input(false);           // Si muestra búsqueda
+----
+
+==== Estructura de la Plantilla
+
+Se divide en 2 filas (BEM: `filter-bar__top-row`, `filter-bar__bottom-row`):
+
+1. *Top Row*: Búsqueda + botón de acción + (en mobile) botón de filtros + paginación.
+2. *Bottom Row*: `KbqFilterBar` inline (desktop) o sidepanel (mobile).
+
+==== Comportamiento por Breakpoint
+
+[source, scss]
+----
+// Desktop: todo en una fila
+.filter-bar__top-row, .filter-bar__bottom-row { display: contents; }
+
+// Mobile: top-row=column, bottom-row=none
+@media (max-width: 767px) {
+  .filter-bar { flex-direction: column; }
+  .filter-bar__bottom-row { display: none; } // Oculta filtros inline
+  .filter-bar__search-row { display: flex; } // Búsqueda + botón filtros
+}
+----
+
+==== Búsqueda (`searchable`)
+
+Usa `app-input` con `formGroupKey='search'` y `debounceTime(500)`:
+
+[source, typescript]
+----
+// En filter-bar.component.ts
+this.form.valueChanges
+  .pipe(debounceTime(500))
+  .subscribe((value: Partial<{ search: string }>) => {
+    this.updateSearchCriteria({ query: value.search });
+  });
+----
+
+==== Filtros (`KbqFilterBar`)
+
+- Recibe `filter` (un `KbqFilter` creado con `createFilter()`).
+- Convierte cambios a `SearchCriteria.filters` mediante `mapFilters()`:
+
+[source, typescript]
+----
+protected onFilterChange(kbqFilter: KbqFilter | unknown): void {
+  const castKbqFilter = kbqFilter as KbqFilter;
+  let filters = mapFilters(castKbqFilter);  // a formato plano
+
+  // Aplica valores por defecto si el usuario vacía un filtro
+  filters.forEach((filter, index) => {
+    if (filter.value.length === 0) {
+      const defaultFilters = mapFilters(this.filter()!.default);
+      const defaultFilter = defaultFilters.find(f => f.id === filter.id);
+      if (defaultFilter) filters[index].value = defaultFilter.value;
+    }
+  });
+
+  // Filtra por visibilidad (FilterRule)
+  filters = filters.filter(f => this.isFilterVisible(f.id));
+  this.updateSearchCriteria({ filters });
+}
+----
+
+==== Visibilidad de Filtros (`FilterRule`)
+
+Las reglas en `filter.rules` controlan qué filtros mostrar:
+
+[source, typescript]
+----
+protected isFilterVisible(filterType: string): boolean {
+  const rule = this.filterRules()?.find(r => r.filter === filterType);
+  return !rule || rule.visible;  // si no hay regla, visible
+}
+
+private updateVisibility(kbqFilter: KbqFilter): void {
+  this.filterRules()?.forEach(rule => {
+    if (rule.dependsOn?.filter) {
+      const pipe = kbqFilter.pipes.find(p => p.filterName === rule.dependsOn.filter);
+      const selectedValues = pipe!.value as KbqPipe[];
+      rule.visible = selectedValues?.length === 1 && 
+                    rule.dependsOn.values.includes(selectedValues[0].id as string);
+    }
+  });
+}
+----
+
+==== Paginación (`app-pagination`)
+
+Se muestra si `pageService.pages > 1`. El explorador emite `pageChange`:
+
+[source, typescript]
+----
+protected onPageChange(page: number): void {
+  this.updateSearchCriteria({ page });
+}
+
+// En la plantilla
+@if (pageService.pages > 1) {
+  <app-pagination (pageChange)="onPageChange($event)" [totalPages]="pageService.pages" />
+}
+----
+
+==== Sidepanel de Filtros (Mobile)
+
+En mobile, el botón "sliders" abre un `kbq-sidepanel` con los mismos filtros:
+
+[source, typescript]
+----
+protected openFilterPanel(): void {
+  this.sidepanelService.open(this.filterSidepanel, {
+    size: KbqSidepanelSize.Small,
+    hasBackdrop: true,
+    position: KbqSidepanelPosition.Top,
+  });
+}
+----
+
+==== `SearchCriteriaService` (Puente)
+
+El filter-bar actualiza el `SearchCriteriaService` que está inyectado en el explorador:
+
+[source, typescript]
+----
+private updateSearchCriteria(updates: Partial<SearchCriteria>): void {
+  this.searchCriteria.update(current => ({
+    ...current,       // preserva query, filters, page existentes
+    ...updates,      // sobreescribe solo lo que cambió
+  }));
+  this.searchCriteriaService.value = this.searchCriteria(); // notifica al servicio
+}
+----
+
+==== `PageService` (Paginación)
+
+Se inyecta y se actualiza desde el componente que usa el filter-bar (explorador):
+
+[source, typescript]
+----
+// En el explorador
+providers: [SearchCriteriaService, PageService]
+
+// En filter-bar.component.ts
+pageService = inject(PageService); // comparte la misma instancia
+----
+
+==== Uso en Explorer (Ejemplo con `user-explorer.component.ts`)
+
+[source, html]
+----
+<app-filter-bar [filter]="userFilter" [searchable]="true">
+  <app-button slot="action" (action)="create()" text="Crear usuario" />
+</app-filter-bar>
+----
+
+El explorador:
+1. Inyecta `SearchCriteriaService` y `PageService` en sus `providers`.
+2. Pasa `userFilter` (de `core/models/filters/user.filter.ts`) al filter-bar.
+3. El filter-bar actualiza `searchCriteriaService.value` → el servicio reacciona.
+
+=== Badges (`shared/components/badges/`)
+
+Badges reutilizables para mostrar información visual. Todos usan `BadgeComponent` como base.
+
+==== `phone-badge.component.ts`
+
+Input: `value` (string, default: '123456789'), `color` (default: 'fade-contrast').
+
+Comportamiento: Muestra el número de teléfono como enlace `tel:` clickeable.
+
+[source, html]
+----
+<app-badge [color]="color()" [tooltip]="'' + value()" icon="'phone'">
+  <div class="kbq-badge-caption-strong">
+    <a class="kbq-link_external" href="tel:{{ value() }}" rel="noopener" target="_parent">
+      {{ value() }}
+    </a>
+  </div>
+</app-badge>
+----
+
+==== `date-badge.component.ts`
+
+Input: `value` (DateTime), `label` (string opcional), `color` (default: 'fade-contrast'), `withRelativeTime` (boolean, default: true).
+
+Comportamiento: Muestra la fecha formateada. Si `withRelativeTime=true`, muestra tiempo relativo (ej. "hace 3 horas") y el tooltip muestra la fecha completa. Si `withRelativeTime=false`, muestra la fecha formateada directamente.
+
+Usa `ParseDate` de `core/utils/parse-date` para formateo.
+
+[source, typescript]
+----
+import { ParseDate } from '@core/utils/parse-date';
+import { DateTime } from 'luxon';
+
+export class DateBadgeComponent {
+  value = input<DateTime>(DateTime.now());
+  label = input('');
+  color = input('fade-contrast');
+  withRelativeTime = input(true);
+
+  displayDate = computed(() => {
+    if (this.withRelativeTime()) {
+      return ParseDate.toRelativeTime(this.value()); // ej. "hace 3 horas"
+    }
+    return ParseDate.toFormat(this.value()); // ej. "05/05/2026"
+  });
+
+  tooltip = computed(() => {
+    if (this.withRelativeTime()) {
+      return ParseDate.toFormat(this.value()); // tooltip muestra fecha completa
+    }
+    return ParseDate.toRelativeTime(this.value()); // tooltip muestra tiempo relativo
+  });
+}
+----
+
+==== `option-badge.component.ts`
+
+Input: `value` (unknown), `options` (Option<unknown>[]), `showLabelStart` (boolean, default: true).
+
+Comportamiento: Busca la opción por `value` usando `getOptionByValue()`. Muestra el `badgeColor` de la opción. En mobile, muestra solo el nombre con tooltip; en desktop, muestra `label + name` o `name + label`.
+
+[source, typescript]
+----
+export class OptionBadgeComponent {
+  value = input<unknown>();
+  options = input<Option<unknown>[]>([]);
+  showLabelStart = input(true); // "Acciones: Consulta" o "Consulta: Acciones"
+
+  get option(): Option<unknown> {
+    return getOptionByValue(this.value(), this.options());
+  }
+}
+----
+
+[source, html]
+----
+<app-badge [responsive]="true" [color]="option.badgeColor!">
+  @if (breakpointService.isMobile()) {
+    <div kbqTooltip="{{ option.name }}">
+      {{ showLabelStart() ? label() + ' ' + option.name : option.name + ' ' + label() }}
+    </div>
+  } @else {
+    <div>{{ showLabelStart() ? label() + ' ' + option.name : option.name + ' ' + label() }}</div>
+  }
+</app-badge>
+----
+
+==== `duration-badge.component.ts`
+
+Input: `duration` (number, default: 1), `color` (default: 'fade-contrast').
+
+Comportamiento: Muestra la duración en minutos formateada como "Xh Ym" usando `MinutesHoursPipe`.
+
+[source, html]
+----
+<app-badge [color]="color()" [tooltip]="duration() + ' minutos'">
+  <div class="kbq-badge-caption">{{ duration() | minutesToHours }}</div>
+</app-badge>
+----
+
+=== Otros Componentes==
+
+==== `alert.component.ts`
+
+Input: `type` ('info' | 'warning' | 'error' | 'success', default: 'info'), `closable` (boolean, default: false).
+
+Outputs: Emite `close()` cuando se cierra.
+
+Comportamiento: Usa `KbqAlert` de Kobiq con animaciones `fade-in` (500ms) y `fade-out` (200ms). Muestra ícono según el tipo: triángulo (warning), triángulo (error), check (success), info (info).
+
+[source, typescript]
+----
+export type AlertType = 'info' | 'warning' | 'error' | 'success';
+
+export class AlertComponent {
+  type = input<AlertType>('info');
+  closable = input(false);
+  isVisible = signal(true);
+
+  alertColor = computed(() => {
+    switch (this.type()) {
+      case 'warning': return KbqAlertColors.Warning;
+      case 'error': return KbqAlertColors.Error;
+      case 'success': return KbqAlertColors.Success;
+      default: return KbqAlertColors.Info;
+    }
+  });
+
+  close() { this.isVisible.set(false); }
+}
+----
+
+[source, html]
+----
+@if (isVisible()) {
+  <kbq-alert [alertColor]="alertColor()" [alertStyle]="KbqAlertStyles.Colored" [compact]="true"
+             animate.enter="fade-in" animate.leave="fade-out">
+    @switch (type()) {
+      @case ('warning') { <i kbq-icon="kbq-triangle-exclamation_16"></i> }
+      @case ('error') { <i kbq-icon="kbq-triangle-exclamation_16"></i> }
+      @case ('success') { <i kbq-icon="kbq-circle-check_16"></i> }
+      @default { <i kbq-icon="kbq-circle-info_16"></i> }
+    }
+    <ng-content /> <!-- Texto del alerta -->
+    @if (closable()) {
+      <i kbq-alert-close-button kbq-icon-button="kbq-xmark-s_16" (click)="close()"></i>
+    }
+  </kbq-alert>
+}
+----
+
+==== `pagination.component.ts`
+
+Input: `totalPages` (number, default: 10), `page` (model, default: 1).
+
+Comportamiento: Muestra botones de navegación de página. Valida que la página esté entre 1 y `totalPages`. Usa `clamp()` para limitar el valor. Emite `pageChange` cuando cambia.
+
+[source, typescript]
+----
+export class PaginationComponent {
+  totalPages = input<number>(10);
+  page = model<number>(1);
+
+  canGoBack = computed(() => this.page() > 1);
+  canGoForward = computed(() => this.page() < this.totalPages());
+
+  navigateTo(newPage: number): void {
+    this.page.set(this.clamp(newPage, 1, this.totalPages()));
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+}
+----
+
+==== `popover-actions.component.ts`
+
+Input: `content` (TemplateRef requerido), `withLabel` (boolean, default: true), `icon` (string, default: 'eye').
+
+Comportamiento: Botón que abre un `KbqPopover` con las acciones. En mobile, permite agrupar acciones en un popover para ahorrar espacio.
+
+[source, typescript]
+----
+export class PopoverActionsComponent {
+  content = input.required<TemplateRef<unknown>>();
+  withLabel = input(true);
+  icon = input('eye');
+
+  iconClass = computed(() => `kbq-${this.icon()}_16`);
+  popoverTrigger = viewChild.required<KbqPopoverTrigger>('kbqPopover');
+}
+----
+
+[source, html]
+----
+<ng-template #titleContent>
+  @if (withLabel()) {
+    <div class="kbq-text-normal-strong">Acciones</div>
+  }
+</ng-template>
+
+<button #kbqPopover="kbqPopover" kbq-button [kbqPopoverContent]="content()" [kbqPopoverHeader]="titleContent">
+  <i kbq-icon="" [class]="iconClass()"></i>
+</button>
+----
+
+==== `loader.component.ts`
+
+No se encontró un archivo `loader.component.ts` en el proyecto. En su lugar, se usan directamente los skeletons de Kobiq (`kbq-skeleton`) con las clases BEM `c-skeleton-table`, `c-skeleton-table__header`, `c-skeleton-table__row` definidas en `scss/components/components/_c-skeleton.scss`.
+
+Ejemplo de uso en explorer:
+[source, html]
+----
+<div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+  <div class="c-skeleton-table__header">
+    <kbq-skeleton [style.height.px]="20" />
+    <kbq-skeleton [style.height.px]="20" />
+  </div>
+  @for (_ of Array.from({ length: 8 }); track $index) {
+    <div class="c-skeleton-table__row">
+      <kbq-skeleton [style.height.px]="20" />
+      <kbq-skeleton [style.height.px]="20" />
+    </div>
+  }
+</div>
+----
+
+== Directivas
+
+=== `focus-invalid-control.directive.ts`
+
+Directiva que enfoca el primer control inválido al enviar un formulario.
+
+.Uso
+[source, html]
+----
+<form (ngSubmit)="onSubmit()" appFocusInvalidControl>
+  <!-- campos del formulario -->
+</form>
+----
+
+=== `reset-form.directive.ts`
+
+Directiva para resetear un formulario a su estado inicial.
+
+== Pipes
+
+=== `minutes-hours.pipe.ts`
+
+Convierte minutos a formato `HH:MM`.
+
+== Patrones Observados
+
+- Los componentes de formulario *no* tienen su propio `FormGroup`; usan `ControlContainer` para heredar el padre.
+- Las opciones de selects se definen como arrays de `Option<T>` (interfaz en `core/utils/utils`).
+- Los componentes compartidos usan `ChangeDetectionStrategy.OnPush` para rendimiento.

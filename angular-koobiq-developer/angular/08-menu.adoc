@@ -1,0 +1,182 @@
+= Menu: Configuración y Router
+:toc:
+:icons: font
+
+== Ubicación
+
+Los archivos de menú están en `src/app/core/utils/menu/`.
+
+== Estructura de Archivos
+
+[source, bash]
+----
+core/utils/menu/
+├── menu.config.ts    # Definición de items del menú
+├── menu.model.ts     # Interfaces: Menu, MenuStrategy
+├── menu.ts           # MenuService (proveedor de items)
+└── route.paths.ts   # Rutas constantes de la app
+----
+
+== Route Paths (`route.paths.ts`)
+
+Define rutas como constantes tipadas para evitar strings mágicos:
+
+[source, typescript]
+----
+export const RoutePath = {
+  SignIn: 'auth/sign-in',
+  Dashboard: 'dashboard',
+  Users: 'usuarios',
+  Treatments: 'tratamientos',
+  Consultations: 'consultas',
+  DentalServices: 'servicios-dentales',
+  // ... otras rutas
+} as const;
+
+export type RoutePathValue = (typeof RoutePath)[keyof typeof RoutePath];
+----
+
+== Modelo de Menú (`menu.model.ts`)
+
+Interfases para items y estrategias de menú:
+
+[source, typescript]
+----
+export interface Menu {
+  icon: string;           // Ícono de Kobiq (ej. 'user', 'gear')
+  name: string;           // Texto mostrado
+  redirectTo?: string;     // Ruta a navegar (usa RoutePath)
+  description?: string;    // Tooltip/descripción
+  isExternalRedirect?: boolean; // Si la ruta es externa
+  items?: Menu[];          // Submenús (opcional)
+}
+
+export interface MenuStrategy {
+  getItems(): readonly Menu[];
+}
+----
+
+== Configuración de Menú (`menu.config.ts`)
+
+Define los items disponibles y estrategias para mostrar según rol:
+
+[source, typescript]
+----
+// Items individuales
+const dashboardMenu: Menu = {
+  icon: 'house',
+  name: 'Dashboard',
+  redirectTo: RoutePath.Dashboard,
+  description: 'Resumen y métricas principales',
+};
+
+const userMenu: Menu = {
+  icon: 'user',
+  name: 'Usuarios',
+  redirectTo: RoutePath.Users,
+  description: 'Gestión de usuarios del sistema',
+};
+
+// Estrategia para todos los usuarios (ejemplo)
+class AllMenuStrategy implements MenuStrategy {
+  getItems(): readonly Menu[] {
+    return [dashboardMenu, userMenu, /* ...otros items */];
+  }
+}
+
+export class MenuStrategyFactory {
+  static create(): MenuStrategy {
+    // Aquí podrías retornar distintas estrategias según el rol del usuario
+    return new AllMenuStrategy();
+  }
+}
+----
+
+== Menu Service (`menu.ts`)
+
+Proveedor que expone los items del menú a la navbar:
+
+[source, typescript]
+----
+@Injectable({ providedIn: 'root' })
+export class MenuService {
+  private strategy = MenuStrategyFactory.create();
+
+  menuItems = signal<Menu[]>(this.strategy.getItems());
+
+  isItemActive(item: Menu): boolean {
+    // Lógica para marcar item activo basado en la ruta actual
+    return inject(Router).url.includes(item.redirectTo || '');
+  }
+
+  onSubMenuClick(subItem: Menu) {
+    if (subItem.isExternalRedirect && subItem.redirectTo) {
+      window.open(subItem.redirectTo, '_blank');
+    }
+  }
+}
+----
+
+== Integración con App Router
+
+El archivo de rutas principal (`app.routes.ts` o similar) usa `RoutePath` para definir las rutas:
+
+[source, typescript]
+----
+import { RoutePath } from '@core/utils/menu/route.paths';
+
+export const routes: Routes = [
+  { path: RoutePath.Dashboard, component: DashboardComponent },
+  { path: RoutePath.Users, loadComponent: () => import('@pages/user/explorer/user-explorer.component') },
+  { path: `${RoutePath.Users}/:id`, loadComponent: () => import('@pages/user/detail/user.component') },
+  // ... otras rutas
+];
+----
+
+== Uso en Navbar
+
+La navbar inyecta `MenuService` para renderizar los items:
+
+=== Desktop Navbar (`desktop-navbar.component.ts`)
+
+[source, typescript]
+----
+@Component({ /* ... */ })
+export class DesktopNavbarComponent {
+  protected readonly menuService = inject(MenuService);
+  protected readonly menuItems = this.menuService.menuItems;
+}
+----
+
+.En la plantilla
+[source, html]
+----
+@for (item of menuItems(); track item.name) {
+  <a [routerLink]="item.redirectTo" routerLinkActive="active">
+    <kbq-icon [name]="item.icon" />
+    <span>{{ item.name }}</span>
+  </a>
+}
+----
+=== Mobile Navbar (`mobile-navbar.component.ts`)
+
+Misma lógica, pero con un indicador visual para el item activo y un menú "Más" para items extra:
+
+[source, typescript]
+----
+export class MobileNavbarComponent {
+  protected readonly menuService = inject(MenuService);
+
+  protected readonly activeIndex = computed(() => {
+    const items = this.menuService.menuItems();
+    return items.findIndex((item) => this.menuService.isItemActive(item));
+  });
+}
+----
+
+== Patrones Observados
+
+- Los items del menú son *configuración pura*, no lógica de negocio.
+- `MenuStrategyFactory` permite cambiar items según el rol del usuario (ej. admin vs cliente).
+- Las rutas se definen una sola vez en `route.paths.ts` y se reutilizan en menú y router.
+- El servicio `MenuService` usa `signal` para reactividad ante cambios de estrategia.

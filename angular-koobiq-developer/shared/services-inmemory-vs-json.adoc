@@ -1,0 +1,108 @@
+= Shared: InMemory vs JSON-Server
+:toc:
+:icons: font
+
+== Servicios InMemory vs JSON-Server==
+
+Los servicios tienen dos implementaciones:
+1. *Regular Service*: Usa `HttpClient` para hacer peticiones a un JSON-Server (o API real).
+2. *InMemory Service*: Usa un `Map` local con datos mock, simula delay con `delay(500)`.
+
+=== Ejemplo: `UserService` (JSON-Server)
+
+[source, typescript]
+----
+@Injectable({ providedIn: 'root' })
+export class UserService extends BaseCrudService {
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = `${environment.apiBaseUrl}/users`;
+
+  readonly findAll = createOperation(
+    () => this.http.get<UserDto[]>(this.apiUrl),
+    (err) => this.handleError(err),
+  );
+
+  readonly create = createOperation(
+    (data: UserCreateDto) => this.http.post<UserDto>(this.apiUrl, data),
+    (err) => this.handleError(err),
+    true,
+  ).onSuccess(() => {
+    this.findAll(); // Refresca lista
+    this.toast.success('Éxito', 'Usuario creado correctamente.');
+  });
+}
+----
+
+=== Ejemplo: `UserInMemoryService`==
+
+[source, typescript]
+----
+@Injectable({ providedIn: 'root' })
+export class UserInMemoryService extends BaseCrudService {
+  public store = new Map<number, UserDto>(MOCK_USERS.map((u) => [u.id, u]));
+  private nextId = MOCK_USERS.length + 1;
+
+  readonly findAll = createOperation(
+    () => {
+      const query = this.criteria?.value?.query;
+      if (query) {
+        // Filtrado local por query
+        const lowerQuery = query.toLowerCase();
+        const filtered = [...this.store.values()].filter(u =>
+          u.fullName.toLowerCase().includes(lowerQuery)
+        );
+        return this.pipe(of(filtered));
+      }
+      return of([...this.store.values()]);
+    },
+    (err) => this.handleError(err),
+  );
+
+  protected override pipe<R>(source: Observable<R>): Observable<R> {
+    return source.pipe(delay(500)); // Simula latencia
+  }
+}
+----
+
+== Switching entre InMemory y JSON-Server==
+
+Se usa `InjectionToken` y la configuración de `environment.ts`:
+
+=== Tokens de Servicio (`service.tokens.ts`)
+
+[source, typescript]
+----
+export const USER_SERVICE_TOKEN = new InjectionToken<UserService | UserInMemoryService>(
+  'USER_SERVICE_TOKEN',
+);
+
+// En el módulo/componente que usa el servicio:
+providers: [
+  {
+    provide: USER_SERVICE_TOKEN,
+    useClass: environment.useInMemory ? UserInMemoryService : UserService,
+  },
+]
+----
+
+=== Configuración de Environment==
+
+[source, typescript]
+----
+// environment.ts
+export interface AppConfig {
+  apiBaseUrl: string;
+  useInMemory: boolean;
+}
+
+export const environment: AppConfig = {
+  apiBaseUrl: 'http://localhost:3000/api',
+  useInMemory: true, // true = usa InMemory, false = usa JSON-Server
+};
+----
+
+== Patrones Observados==
+
+- La configuración es la misma para todos los servicios (usan el mismo token de entorno).
+- Los servicios InMemory extienden `BaseCrudService` y usan `Map` para almacenamiento.
+- No hay cambios en el código del explorador/detail al cambiar de modo; solo cambia el proveedor.

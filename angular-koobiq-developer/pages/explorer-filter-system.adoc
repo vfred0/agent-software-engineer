@@ -1,0 +1,120 @@
+= Explorer: Filter System (createFilter, Filter, FilterRule)
+:toc:
+:icons: font
+
+== Sistema de Filtros: `createFilter()` y `createDefaultFilters()`==
+
+Las funciones en `core/models/filters/utils/filter.util.ts` crean la configuración:
+
+=== `createFilter()` — Crea una plantilla de filtro (KbqPipeTemplate)
+
+[source, typescript]
+----
+import { KbqPipeTypes } from '@koobiq/components/filter-bar';
+import { createFilter, Filter } from '@core/models/filters/utils/filter.util';
+
+// Ejemplo: date.filter.ts
+export const DATE_FILTER = createFilter(
+  'Fecha',                     // name (visible en UI)
+  'date',                        // filterName (identificador interno)
+  KbqPipeTypes.Datetime,          // tipo de control
+  false,                         // required
+  false,                         // cleanable
+  DATE_RANGES                   // valores iniciales (opciones)
+);
+----
+
+=== `createDefaultFilters()` — Crea el estado inicial (KbqFilter)
+
+[source, typescript]
+----
+const defaultFilters = createDefaultFilters([
+  {
+    template: DATE_FILTER,           // plantilla creada con createFilter
+    value: DATE_RANGES[0],        // valor por defecto
+  },
+  { template: ROLE_FILTER, value: [...RoleOptions] },
+]);
+----
+
+=== Interfaz `Filter` (para el explorer)
+
+[source, typescript]
+----
+export interface Filter {
+  pipes: KbqPipeTemplate[];    // Plantillas de filtros (columnas)
+  default: KbqFilter;          // Estado inicial (valores por defecto)
+  rules?: FilterRule[];        // Reglas de visibilidad dependientes
+}
+----
+
+== Ejemplos de Filtros por Tipo==
+
+=== `date.filter.ts` (Filtro Normal, Estático)
+
+[source, typescript]
+----
+export const DATE_RANGES = [
+  { name: 'Todas las fechas', start: null, end: null },
+  { name: 'Últimas 6 horas', start: { hours: -6 }, end: null },
+  // ... más rangos
+];
+
+export const DATE_FILTER = createFilter('Fecha', 'date', KbqPipeTypes.Datetime, false, false, DATE_RANGES);
+export const dateFilter: Filter = {
+  pipes: [DATE_FILTER],
+  default: createDefaultFilters([{ template: DATE_FILTER, value: DATE_RANGES[0] }]),
+};
+----
+
+=== `user.filter.ts` (Filtro con Opciones Estáticas)
+
+[source, typescript]
+----
+const ROLE_FILTER = createFilter(
+  'Rol',                       // nombre visible
+  'role',                      // filterName
+  KbqPipeTypes.MultiSelect,       // selección múltiple
+  false, false, RoleOptions         // opciones desde enum
+);
+
+export const userFilter: Filter = {
+  pipes: [DATE_FILTER, ROLE_FILTER],
+  default: createDefaultFilters([
+    { template: DATE_FILTER, value: DATE_RANGES[0] },
+    { template: ROLE_FILTER, value: [...RoleOptions] },
+  ]),
+};
+----
+
+=== `activity.filter.ts` (Filtro con Visibilidad Dinámica — `FilterRule`)
+
+[source, typescript]
+----
+const ACTIVITY_TYPES_FILTER = createFilter(
+  'Tipo de actividad',
+  ActivityFilter.ACTIVITY_TYPE,
+  KbqPipeTypes.MultiSelect,
+  false, true,                       // searchable
+  ActivityTypeOptions
+);
+
+export const activityFilter: Filter = {
+  pipes: [DATE_FILTER, ACTIVITY_TYPES_FILTER, ACTIVITY_STATES_FILTER, ADMINISTRATIVE_ACTIVITY_TYPES_FILTER],
+  default: createDefaultFilters([...]),
+  rules: [
+    {
+      filter: ActivityFilter.ACTIVITY_STATE,
+      visible: false,               // oculto por defecto
+      dependsOn: {
+        filter: ActivityFilter.ACTIVITY_TYPE,
+        values: [ActivityType.TECHNICAL],  // se muestra solo si se selecciona "Técnico"
+      },
+    },
+  ],
+};
+----
+
+== Uso de Filtros en Explorer==
+
+Cada explorer importa un filtro específico (ej. `userFilter` de `core/models/filters/user.filter`) y lo pasa al componente `app-filter-bar`.

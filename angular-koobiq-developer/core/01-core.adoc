@@ -1,0 +1,425 @@
+= Core: Enums, Models, Filters, Mocks
+:toc:
+:icons: font
+
+== Ubicación
+
+Todos los archivos core están en `src/app/core/`.
+
+== Estructura de Carpetas
+
+[source, bash]
+----
+core/
+├── enums/                # Enums de la aplicación
+│   ├── activity/         # Enums relacionados con actividades
+│   └── (otros enums)    # consultation.enum.ts, user.enum.ts, etc.
+├── models/               # Modelos y DTOs
+│   ├── auth/             # Modelos de autenticación
+│   └── filters/          # Modelos de filtros
+│       └── utils/        # Utilidades de filtros
+├── utils/                # Utilidades generales
+│   └── menu/             # Configuración de menú y rutas
+└── (archivos mock)       # calendar.mock.ts, user.mock.ts, etc.
+----
+
+== Enums
+
+Los enums se definen en `core/enums/` y se usan para valores fijos tipados.
+
+=== Estructura de Enum con Opciones y BadgeColor
+
+Cada enum puede tener un array de `Option<T>` que incluye `badgeColor` (de Kobiq `KbqBadgeColors`) para usar con `app-option-badge`.
+
+==== Ejemplo: ConsultationReason (`core/enums/consultation-reason.ts`)
+
+[source, typescript]
+----
+import { createExtendableOptions } from '@core/utils/utils';
+import { KbqBadgeColors } from '@koobiq/components/badge';
+
+export enum ConsultationReason {
+  ACUTE_PAIN = 'DOLOR_AGUDO',
+  DENTAL_FRACTURE = 'FRACTURA_DENTAL',
+  ROUTINE_CHECKUP = 'CHEQUEO_RUTINA',
+  EMERGENCY = 'URGENCIA',
+}
+
+export const ConsultationReasonOptions = createExtendableOptions<ConsultationReason>([
+  {
+    id: ConsultationReason.ACUTE_PAIN,
+    name: 'Dolor agudo',
+    badgeColor: KbqBadgeColors.FadeError,  // Color del badge
+  },
+  {
+    id: ConsultationReason.DENTAL_FRACTURE,
+    name: 'Fractura dental',
+    badgeColor: KbqBadgeColors.FadeError,
+  },
+  {
+    id: ConsultationReason.ROUTINE_CHECKUP,
+    name: 'Chequeo de rutina',
+    badgeColor: KbqBadgeColors.FadeTheme,
+  },
+  {
+    id: ConsultationReason.EMERGENCY,
+    name: 'Urgencia',
+    badgeColor: KbqBadgeColors.FadeWarning,
+  },
+]);
+----
+
+=== Uso de Enum Options con `app-option-badge`
+
+El componente `app-option-badge` recibe `value` y `options`, y usa `badgeColor` de la opción para colorear el badge.
+
+==== En `consultation-explorer.component.ts` (explorer)
+
+[source, html]
+----
+<!-- Muestra badges de motivos uno al lado del otro -->
+@for (reason of consultation.reasons; track reason) {
+  <app-option-badge [options]="ConsultationReasonOptions" [value]="reason" />
+}
+----
+
+==== El componente `option-badge.component.ts`
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-option-badge',
+  template: `
+    <app-badge [responsive]="true" [color]="option.badgeColor!">
+      <div class="kbq-badge-caption-strong">
+        {{ option.name }}
+      </div>
+    </app-badge>
+  `,
+})
+export class OptionBadgeComponent {
+  value = input<unknown>();
+  options = input<Option<unknown>[]>([]);
+
+  get option(): Option<unknown> {
+    return getOptionByValue(this.value(), this.options());
+  }
+}
+----
+
+=== Ejemplo: Enum de Usuario (`core/enums/user.enum.ts`)
+
+[source, typescript]
+----
+export enum Gender {
+  Male = 'M',
+  Female = 'F',
+  Other = 'O',
+}
+
+// Opciones para selects (usa interfaz Option de core/utils/utils)
+export const GenderOptions: Option<Gender>[] = [
+  { id: Gender.Male, name: 'Masculino' },
+  { id: Gender.Female, name: 'Femenino' },
+  // ...
+];
+----
+export enum Gender {
+  Male = 'M',
+  Female = 'F',
+  Other = 'O',
+}
+
+export enum BloodGroup {
+  APositive = 'A+',
+  ANegative = 'A-',
+  // ... otros grupos
+}
+
+// Opciones para selects (usa interfaz Option de core/utils/utils)
+export const GenderOptions: Option<Gender>[] = [
+  { id: Gender.Male, name: 'Masculino' },
+  { id: Gender.Female, name: 'Femenino' },
+  // ...
+];
+----
+
+== Models
+
+Los modelos y DTOs están en `core/models/`. Se dividen en:
+- *Auth Models*: `access-token.dto.ts`, `session.ts`, `sign-in-request.dto.ts`
+- *Filter Models*: `search-criteria.ts`, `activity.filter.ts`, `date.filter.ts`
+
+=== Interfaz `Option<T, D>` (`core/utils/utils.ts`)
+
+Define la estructura para opciones de selects y badges:
+
+[source, typescript]
+----
+export interface Option<T, D = unknown> {
+  id: T;                    // Valor único (usualmente enum o string/number)
+  name: string;              // Texto mostrado
+  image?: string;             // URL de imagen (opcional)
+  badgeColor?: KbqBadgeColors; // Color del badge (de Kobiq)
+  isPositive?: boolean;        // Si es positivo (opcional)
+  options?: Option<T>[];     // Sub-opciones (para optgroups)
+  description?: string;       // Descripción (opcional)
+  roles?: Role[];            // Roles que pueden verlo (opcional)
+  data?: D;                  // Datos adicionales (genérico)
+  append?: (value: unknown) => void; // Función para extender (si es ExtendableOptions)
+}
+----
+
+=== Función `createExtendableOptions<T>` (`core/utils/utils.ts`)
+
+Crea un array de opciones que puede extenderse dinámicamente:
+
+[source, typescript]
+----
+export function createExtendableOptions<T>(options: Option<T>[]): ExtendableOptions<T> {
+  const optArray = [...options] as ExtendableOptions<T>;
+
+  optArray.append = function (newItems: T[] | Option<T>[]): Option<T>[] {
+    const existingIds = new Set(this.map((opt) => opt.id));
+
+    const mappedOptions = newItems.map((item) => {
+      if (item !== null && typeof item === 'object' && 'id' in item && 'name' in item) {
+        return item as Option<T>;
+      }
+      return { id: item as T, name: String(item) } as Option<T>;
+    });
+
+    const additions = mappedOptions.filter((opt) => !existingIds.has(opt.id));
+    this.push(...additions);
+    return this;
+  };
+
+  return optArray;
+}
+----
+
+Uso práctico:
+[source, typescript]
+----
+// En el componente padre
+allergyOptions = AllergyOptions.append(this.panelData.user?.allergies || []);
+
+// En la plantilla (select multiple)
+<app-select
+  formGroupKey="allergies"
+  [options]="allergyOptions()"
+  [multiple]="true"
+/>
+----
+
+=== Función `getOptionByValue` (`core/utils/utils.ts`)
+
+Encuentra una opción por su valor:
+
+[source, typescript]
+----
+export function getOptionByValue(value: unknown, options: Option<unknown>[]): Option<unknown> {
+  return options.find((option) => option?.id === value) || options[0];
+}
+----
+
+=== SearchCriteria (`core/models/filters/search-criteria.ts`)
+
+[source, typescript]
+----
+export interface SearchCriteria {
+  query?: string;       // Búsqueda texto libre
+  filters?: FilterValue[]; // Filtros aplicados
+  page?: number;         // Paginación
+}
+
+export function mapFilters(kbqFilter: KbqFilter): FilterValue[] {
+  // Convierte filtros de Kobiq FilterBar a formato plano
+}
+----
+
+== Filters
+
+Los filtros usan el componente `KbqFilterBar` de Kobiq. Las reglas de visibilidad y dependencias están en `FilterRule` y `FilterManager`.
+
+=== FilterRule (`core/models/filters/utils/filter-rule.ts`)
+
+[source, typescript]
+----
+export interface FilterRule {
+  filter: string;          // Nombre del filtro
+  visible: boolean;         // Si el filtro es visible
+  dependsOn?: {             // Dependencia de otro filtro
+    filter: string;
+    values: string[];
+  };
+}
+----
+
+=== Uso de Filtros en Explorer
+
+Cada explorer importa un filtro específico (ej. `userFilter` de `core/models/filters/user.filter`) y lo pasa al componente `app-filter-bar`.
+
+== Mocks
+
+Los datos de prueba están en archivos `.mock.ts` en `core/`. Pueden exportar **interfaces (DTOs)** o **clases**:
+
+=== Cuándo usar Clases vs Interfaces
+
+- *Interface/DTO plano*: Cuando el objeto es solo datos, sin lógica interna.
+- *Clase*: Cuando necesitás **procesamiento interno** (ej. constructor que mapea relaciones, valida datos, inicializa colecciones). Usar clases aumenta la **cohesión** (datos + comportamiento juntos) y el **encapsulamiento** (lógica oculta dentro del objeto).
+
+=== Ejemplo: `treatments.mock.ts` (Clases para cohesión)
+
+Exporta clases `TreatmentExam`, `TreatmentSession`, y `TreatmentDto` con lógica en el constructor:
+
+[source, typescript]
+----
+import { TreatmentComplexity, TreatmentSessionStatus, TreatmentStatus } from '@core/enums/treatment.enum';
+import { DateTime } from 'luxon';
+
+// Clase para examenes dentales - maneja su propia inicialización
+export class TreatmentExam {
+  id!: number;
+  treatmentSessionId!: number;
+  type!: TreatmentExamType;
+  date!: DateTime;
+  fileUrl!: string;
+  interpretation?: string;
+
+  constructor(init?: Partial<TreatmentExam>) {
+    Object.assign(this, init); // Mapeo de datos
+  }
+}
+
+// Clase para sesiones - maneja colecciones internas
+export class TreatmentSession {
+  id!: number;
+  appointmentId!: string;
+  startDate!: DateTime;
+  endDate!: DateTime;
+  notes!: string;
+  status!: TreatmentSessionStatus;
+  exams?: TreatmentExam[];
+
+  constructor(init?: Partial<TreatmentSession>) {
+    Object.assign(this, init);
+    // Lógica interna: si vienen exams, los instancia como clases
+    if (init?.exams) {
+      this.exams = init.exams.map((exam) => new TreatmentExam(exam));
+    }
+  }
+}
+
+// DTO principal - maneja sesiones como clases
+export class TreatmentDto {
+  id!: number;
+  userId!: number;
+  status!: TreatmentStatus;
+  description!: string;
+  complexity!: TreatmentComplexity;
+  sessions?: TreatmentSession[];
+  // ... más campos
+
+  constructor(init?: Partial<TreatmentDto>) {
+    Object.assign(this, init);
+    // Encapsula el mapeo de sesiones
+    if (init?.sessions) {
+      this.sessions = init.sessions.map((session) => new TreatmentSession(session));
+    }
+  }
+}
+
+// Datos mock exportados como instancias de clase
+export const MOCK_TREATMENTS: TreatmentDto[] = [
+  new TreatmentDto({
+    id: 1,
+    userId: 1,
+    description: 'Endodoncia y Corona',
+    status: TreatmentStatus.Completed,
+    complexity: TreatmentComplexity.Complex,
+    sessions: [
+      new TreatmentSession({
+        id: 101,
+        startDate: DateTime.fromISO('2026-05-01T10:00:00Z'),
+        notes: 'Apertura y extirpación pulpar.',
+        status: TreatmentSessionStatus.Attended,
+      }),
+      // ... más sesiones
+    ],
+  }),
+  // ... más tratamientos
+];
+----
+
+=== Ejemplo: `user.mock.ts` (Interface/DTO plano)
+
+Cuando no hay lógica interna, se usan interfaces simples:
+
+[source, typescript]
+----
+export interface UserDto {
+  id: number;
+  fullName: string;
+  gender: Gender;
+  phone: string;
+  // ...
+}
+
+export const MOCK_USERS: UserDto[] = [
+  {
+    id: 1,
+    fullName: 'Juan Pérez',
+    gender: Gender.Male,
+    phone: '+5491112345678',
+  },
+  // ...
+];
+----
+
+=== Otros archivos mock
+
+- `consultation.mock.ts`: Exporta `ConsultationDto`, `MOCK_CONSULTATIONS`
+- `dental-service.mock.ts`: Exporta `DentalServiceDto`, `MOCK_DENTAL_SERVICES`
+- `calendar.mock.ts`: Exporta eventos de calendario mock
+
+== Utilidades de Menú
+
+La configuración del menú está en `core/utils/menu/`:
+
+=== Route Paths (`core/utils/menu/route.paths.ts`)
+
+[source, typescript]
+----
+export const RoutePath = {
+  Dashboard: 'dashboard',
+  Users: 'usuarios',
+  Consultations: 'consultas',
+  Treatments: 'tratamientos',
+  DentalServices: 'servicios-dentales',
+  // ... otras rutas
+} as const;
+----
+
+=== Menu Config (`core/utils/menu/menu.config.ts`)
+
+Define los items del menú con ícono, nombre y ruta de redirección. Usa `MenuStrategyFactory` para crear la estrategia de menú según el rol del usuario.
+
+== Patrones Observados==
+
+- Los enums exportan tanto el enum crudo como las opciones para selects (`*Options` suffix).
+- Los DTOs se definen junto con los mocks en el mismo archivo o archivo cercano.
+- `SearchCriteria` es el contrato común entre exploradores, servicios y filtros.
+
+=== Mocks: Interface vs Clase (Cohesión y Encapsulamiento)
+
+Se usa **interface** cuando el objeto es solo datos (DTO plano) sin lógica interna.
+
+Se usa **clase** cuando necesitás **procesamiento interno** (ej. mapear colecciones, validar datos, inicializar estado). Esto:
+1. **Aumenta la cohesión**: Mantiene datos y comportamiento relacionado juntos en la misma unidad.
+2. **Mejora el encapsulamiento**: Oculta la lógica de inicialización y transformación dentro del constructor, evitando usar getters externos o lógica dispersa.
+
+Ejemplo de cohesión en `treatments.mock.ts`:
+- `TreatmentSession` tiene un constructor que, si recibe `exams`, los instancia como `new TreatmentExam(exam)`.
+- `TreatmentDto` hace lo mismo con `sessions`.
+- El consumidor solo hace `new TreatmentDto(init)` y obtiene un objeto con todo configurado, sin necesidad de getters o lógica externa.

@@ -1,0 +1,43 @@
+// Ejemplo práctico: SCSS con BEM + ITCSS
+// Basado en scss/ structure
+
+// ---- settings/_settings.scss (variables) ----
+$bp-mobile: 767px;
+$color-primary: #0066cc;
+
+// ---- objects/_o-layout.scss (layout) ----
+.o-layout-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.o-layout-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+// ---- components/_c-button.scss (BEM) ----
+.c-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+
+  &__label { // Elemento
+    font-weight: bold;
+  }
+
+  &--primary { // Modificador
+    background: $color-primary;
+    color: white;
+  }
+}
+
+// ---- Uso en plantilla ----
+/*
+<div class="o-layout-column">
+  <button class="c-button c-button--primary">
+    <span class="c-button__label">Guardar</span>
+  </button>
+</div>
+*/

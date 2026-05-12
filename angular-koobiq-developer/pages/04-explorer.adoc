@@ -1,0 +1,517 @@
+= Explorer: Filtros, Tabla, Sidepanel
+:toc:
+:icons: font
+
+== Ubicación
+
+Los exploradores están en `src/app/pages/*/explorer/` (ej. `user/explorer/`, `treatments/explorer/`).
+
+== Estructura de un Explorer Típico
+
+[source, bash]
+----
+pages/
+├── user/
+│   ├── explorer/
+│   │   ├── user-explorer.component.ts
+│   │   └── user.imports.ts
+│   └── detail/
+└── (otros páginas)
+----
+
+== Estructura de un Explorer Típico
+
+Los exploradores:
+1. Usan `app-filter-bar` para búsqueda y filtros.
+2. Muestran datos en una tabla (Kobiq `kbq-table`) o grid.
+3. Abren un sidepanel para crear/editar items.
+4. Se suscriben a servicios mediante `Operation` signals (ej. `findAll`, `findAll.isLoading()`).
+5. Usan `c-transition-grid` para transiciones suaves entre skeleton → tabla → empty-state.
+6. Badges en tabla para datos coloreados (ej. `app-option-badge` con `badgeColor`).
+@Component({
+  selector: 'app-consultation-explorer',
+  providers: [SearchCriteriaService, PageService],
+  template: `
+    <div class="o-layout-column" style="gap: var(--kbq-size-xl);">
+      <app-filter-bar [searchable]="true" />
+
+      <!-- Contenedor con transición suave -->
+      <div class="c-transition-grid">
+        @if (isLoading()) {
+          <!-- SKELETON ANIMADO -->
+          <div class="c-skeleton-table" animate.enter="c-animate-in" animate.leave="c-animate-out">
+            <div class="c-skeleton-table__header">
+              <kbq-skeleton [style.height.px]="20" />
+              <kbq-skeleton [style.height.px]="20" />
+              <kbq-skeleton [style.height.px]="20" />
+            </div>
+            @for (_ of Array.from({ length: 10 }); track $index) {
+              <div class="c-skeleton-table__row">
+                <kbq-skeleton [style.height.px]="20" />
+                <kbq-skeleton [style.height.px]="20" />
+                <kbq-skeleton [style.height.px]="20" />
+              </div>
+            }
+          </div>
+        } @else {
+          @if (this.service.findAll.isCompleted()) {
+            @if (filteredConsultations().length > 0) {
+              <table
+                kbq-table
+                animate.enter="c-animate-in"
+                animate.leave="c-animate-out"
+              >
+                <thead>
+                  <tr>
+                    <th>Paciente</th>
+                    @if (!breakpointService.isMobile()) {
+                      <th>Motivos</th>
+                    }
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of filteredConsultations(); track c.id) {
+                    <tr>
+                      <td>{{ getPatientName(c) }}</td>
+                      @if (!breakpointService.isMobile()) {
+                        <td>
+                          <div class="o-layout-row o-layout-flex-wrap" style="gap: 4px;">
+                            @for (reason of c.reasons; track reason) {
+                              <!-- BADGE CON COLOR SEGÚN ENUM -->
+                              <app-option-badge 
+                                [options]="ConsultationReasonOptions" 
+                                [value]="reason" 
+                              />
+                            }
+                          </div>
+                        </td>
+                      }
+                      <td>
+                        <app-option-badge 
+                          [options]="ConsultationStatusOptions" 
+                          [value]="c.status" 
+                        />
+                      </td>
+                      <td>
+                        <app-button (action)="openDetail(c)" variant="edit" />
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <kbq-empty-state 
+                style="min-height: 216px" 
+                animate.enter="c-animate-in" 
+                animate.leave="c-animate-out"
+              >
+                <div kbq-empty-state-title>Sin resultados</div>
+                <div kbq-empty-state-text>No se han encontrado consultas.</div>
+              </kbq-empty-state>
+            }
+          }
+        }
+      </div>
+    </div>
+  `,
+})
+export default class ConsultationExplorerComponent {
+  protected service = inject(CONSULTATION_SERVICE_TOKEN);
+  protected breakpointService = inject(BreakpointService);
+  
+  // Computed para filtrar datos localmente si es necesario
+  filteredConsultations = computed(() => {
+    const all = (this.service.findAll.result() as ConsultationDto[]) || [];
+    return all; // Aquí podrías aplicar filtros adicionales
+  });
+
+  // Loading combinado de múltiples servicios
+  isLoading = computed(() =>
+    this.service.findAll.isLoading() ||
+    this.otherService.findAll.isLoading()
+  );
+
+  constructor() {
+    this.service.configure({
+      criteria: inject(SearchCriteriaService),
+      page: inject(PageService),
+    });
+
+    effect(() => {
+      if (!this.isLoading()) {
+        this.service.findAll();
+      }
+    });
+  }
+
+  openDetail(item: ConsultationDto) {
+    this.sidePanel.open(ConsultationDetailComponent, {
+      data: { entity: item, inEditMode: true },
+      size: KbqSidepanelSize.Medium,
+    });
+  }
+}
+----
+
+== El Patrón de Carga (Skeleton + Transición)
+
+=== `c-transition-grid`
+Contenedor que superpone elementos para transiciones suaves mediante CSS Grid:
+
+[source, scss]
+----
+.c-transition-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow-y: hidden;
+  > * {
+    grid-area: 1 / 1; // Todos los hijos en la misma celda
+  }
+}
+----
+
+=== Flujo de Estados
+1. *Carga*: `isLoading()` es true → Muestra `<div class="c-skeleton-table">`.
+2. *Completado con datos*: Muestra `<table>` con animación `c-animate-in`.
+3. *Completado sin datos*: Muestra `<kbq-empty-state>` con animación.
+4. *Cambio de estado*: La animación `c-animate-out` oculta el elemento anterior antes de mostrar el nuevo.
+
+=== Skeleton Detallado
+Usa BEM: `c-skeleton-table__header` y `c-skeleton-table__row` para estructura de tabla simulada:
+[source, html]
+----
+<div class="c-skeleton-table__header">
+  <kbq-skeleton [style.height.px]="20" /> <!-- Columna 1 -->
+  <kbq-skeleton [style.height.px]="20" /> <!-- Columna 2 -->
+</div>
+@for (_ of Array.from({ length: 8 }); track $index) {
+  <div class="c-skeleton-table__row">
+    <kbq-skeleton [style.height.px]="20" />
+    <kbq-skeleton [style.height.px]="20" />
+  </div>
+}
+----
+
+== Uso de Badges en la Tabla
+
+Los exploradores usan `app-option-badge` para mostrar datos coloreados según el enum:
+
+[source, html]
+----
+<!-- En consultas: muestra motivos con badgeColor -->
+@for (reason of consultation.reasons; track reason) {
+  <app-option-badge 
+    [options]="ConsultationReasonOptions" 
+    [value]="reason" 
+  />
+}
+
+<!-- Muestra estado con badgeColor -->
+<app-option-badge 
+  [options]="ConsultationStatusOptions" 
+  [value]="consultation.status" 
+/>
+----
+
+Esto requiere que las opciones del enum tengan `badgeColor` (ver `01-core.adoc`).
+
+== Filter Bar (`app-filter-bar`)
+
+Componente reutilizable que encapsula búsqueda y filtros:
+
+=== Propiedades
+
+[source, typescript]
+----
+// En filter-bar.component.ts
+filter = input<Filter>(dateFilter); // Configuración de filtros (de core/)
+searchable = input(false);           // Si muestra búsqueda
+dynamicOptions = input(false);      // Si permite filtros dinámicos
+searchCriteria = model<SearchCriteria>({} as SearchCriteria); // Criterios compartidos
+----
+
+=== Comportamiento
+
+- *Desktop*: Muestra `KbqFilterBar` inline con filtros y paginación.
+- *Mobile*: Oculta filtros inline, muestra botón para abrir sidepanel de filtros.
+- Búsqueda: Usa `debounceTime(500)` para evitar peticiones excesivas.
+- Filtros: Convierte `KbqFilter` a `SearchCriteria` mediante `mapFilters()`.
+
+=== Botón de Crear
+
+El explorador inserta el botón de crear en el `slot="action"` del filter bar:
+
+[source, html]
+----
+<app-filter-bar [filter]="userFilter" [searchable]="true">
+  <app-button slot="action" (action)="create()" [text]="'Crear usuario'" />
+</app-filter-bar>
+----
+
+== Tabla de Datos
+
+Usa `kbq-table` de Kobiq con soporte para:
+- Skeleton loaders durante carga (`c-skeleton-table`).
+- Estado vacío (`kbq-empty-state`).
+- Diferenciación desktop/mobile (ej. ocultar columnas en mobile).
+- Badges para datos formateados (teléfono, fechas, opciones).
+
+== Sidepanel para Crear/Editar
+
+Se abre mediante `KbqSidepanelService.open()`:
+- *Crear*: Pasa objeto vacío, `inEditMode: false`.
+- *Editar*: Pasa el item completo, `inEditMode: true`.
+- El componente detail se carga en el sidepanel y recibe datos via `KBQ_SIDEPANEL_DATA`.
+
+== Servicios en Explorer
+
+Cada explorador:
+1. Inyecta el servicio via token (ej. `USER_SERVICE_TOKEN`).
+2. Configura `SearchCriteriaService` y `PageService` mediante `service.configure()`.
+3. Ejecuta `service.findAll()` en un `effect()` para reaccionar a cambios de criterios.
+4. Usa `findAll.result()`, `findAll.isLoading()`, `findAll.isCompleted()` para renderizar.
+
+== Patrones Observados
+
+- Cada explorador tiene sus propios `SearchCriteriaService` y `PageService` (providers en el componente).
+- El botón de crear solo aparece si el filter bar tiene `slot="action"` contenido.
+- Las acciones de tabla (editar, eliminar) usan el servicio inyectado.
+- En mobile, las acciones se mueven a un `app-popover-actions` para ahorrar espacio.
+
+== Sistema de Filtros: `createFilter()` y `createDefaultFilters()`
+
+Las funciones en `core/models/filters/utils/filter.util.ts` crean la configuración de filtros:
+
+=== `createFilter()` — Crea una plantilla de filtro (KbqPipeTemplate)
+
+[source, typescript]
+----
+import { KbqPipeTypes } from '@koobiq/components/filter-bar';
+import { createFilter, Filter } from '@core/models/filters/utils/filter.util';
+
+// Ejemplo: date.filter.ts
+export const DATE_FILTER = createFilter(
+  'Fecha',                     // name (visible en UI)
+  'date',                        // filterName (identificador interno)
+  KbqPipeTypes.Datetime,          // tipo de control
+  false,                         // required
+  false,                         // cleanable
+  DATE_RANGES                   // valores iniciales (opciones)
+);
+----
+
+=== `createDefaultFilters()` — Crea el estado inicial (KbqFilter)
+
+[source, typescript]
+----
+import { createDefaultFilters } from '@core/models/filters/utils/filter.util';
+
+const defaultFilters = createDefaultFilters([
+  {
+    template: DATE_FILTER,           // plantilla creada con createFilter
+    value: DATE_RANGES[0],        // valor por defecto
+  },
+  { template: ROLE_FILTER, value: [...RoleOptions] },
+]);
+
+export const userFilter: Filter = {
+  pipes: [DATE_FILTER, ROLE_FILTER],  // filtros que aparecen en la barra
+  default: defaultFilters,
+};
+----
+
+=== Interfaz `KbqPipeTemplate` y `Filter` (de `filter.util.ts`)
+
+[source, typescript]
+----
+export interface KbqPipeTemplate {
+  name: string;
+  type: KbqPipeTypes;
+  filterName?: string;
+  values?: unknown[];       // opciones seleccionadas
+  required: boolean;
+  cleanable: boolean;
+  removable: boolean;
+}
+
+export interface Filter {
+  pipes: KbqPipeTemplate[];   // plantillas para cada filtro
+  default: KbqFilter;          // estado inicial (valores por defecto)
+  rules?: FilterRule[];        // reglas de visibilidad dependientes
+}
+----
+
+== Ejemplos de Filtros por Tipo
+
+=== `date.filter.ts` (Filtro Normal, Estático)
+
+Define rangos de fechas predefinidos (ej. "Últimas 24 horas"):
+
+[source, typescript]
+----
+export const DATE_RANGES = [
+  { name: 'Todas las fechas', start: null, end: null },
+  { name: 'Últimas 6 horas', start: { hours: -6 }, end: null },
+  // ... más rangos
+];
+
+export const DATE_FILTER = createFilter('Fecha', 'date', KbqPipeTypes.Datetime, false, false, DATE_RANGES);
+export const dateFilter: Filter = {
+  pipes: [DATE_FILTER],
+  default: createDefaultFilters([{ template: DATE_FILTER, value: DATE_RANGES[0] }]),
+};
+----
+
+=== `user.filter.ts` (Filtro con Opciones Estáticas)
+
+Usa un enum convertido a opciones (ej. `RoleOptions`):
+
+[source, typescript]
+----
+import { RoleOptions } from '@core/enums/role';
+import { DATE_FILTER, DATE_RANGES } from '@core/models/filters/date.filter';
+
+const ROLE_FILTER = createFilter('Rol', 'role', KbqPipeTypes.MultiSelect, false, false, RoleOptions);
+
+export const userFilter: Filter = {
+  pipes: [DATE_FILTER, ROLE_FILTER],
+  default: createDefaultFilters([
+    { template: DATE_FILTER, value: DATE_RANGES[0] },
+    { template: ROLE_FILTER, value: [...RoleOptions] },
+  ]),
+};
+----
+
+=== `activity.filter.ts` (Filtro con Visibilidad Dinámica — `FilterRule`)
+
+Usa `rules` para mostrar/ocultar filtros según la selección de otro filtro:
+
+[source, typescript]
+----
+import { ActivityTypeOptions } from '@core/enums/activity/activity-type.enum';
+import { TechnicalActivityStateOptions } from '@core/enums/activity/activity-state.enum';
+
+const ACTIVITY_TYPES_FILTER = createFilter(
+  'Tipo de actividad',
+  ActivityFilter.ACTIVITY_TYPE,
+  KbqPipeTypes.MultiSelect,
+  false,
+  true,                // searchable
+  ActivityTypeOptions
+);
+
+export const activityFilter: Filter = {
+  pipes: [DATE_FILTER, ACTIVITY_TYPES_FILTER, ACTIVITY_STATES_FILTER, ADMINISTRATIVE_ACTIVITY_TYPES_FILTER],
+  default: createDefaultFilters([...]),
+  rules: [
+    {
+      filter: ActivityFilter.ACTIVITY_STATE,  // este filtro...
+      visible: false,                      // ...está oculto por defecto
+      dependsOn: {
+        filter: ActivityFilter.ACTIVITY_TYPE,    // ...depende de este otro
+        values: [ActivityType.TECHNICAL],  // ...y solo se muestra si se elige "Técnico"
+      },
+    },
+    // ... más reglas
+  ],
+};
+----
+
+== Uso del Filter Bar en Explorer
+
+El explorador pasa el `Filter` al `app-filter-bar` y configura `SearchCriteriaService` y `PageService`:
+
+=== En `user-explorer.component.ts`
+
+[source, typescript]
+----
+@Component({
+  providers: [SearchCriteriaService, PageService],  // cada explorer tiene sus propios
+  template: `
+    <app-filter-bar [filter]="userFilter" [searchable]="true">
+      <app-button slot="action" (action)="create()" text="Crear usuario" />
+    </app-filter-bar>
+  `,
+})
+export class UserExplorerComponent {
+  protected userFilter = userFilter;  // del archivo user.filter.ts
+
+  constructor() {
+    this.service.configure({
+      criteria: inject(SearchCriteriaService),
+      page: inject(PageService),
+    });
+
+    effect(() => this.service.findAll());  // reacciona a cambios
+  }
+}
+----
+
+=== Cómo funciona internamente `filter-bar.component.ts`
+
+1. *Inicialización*: `initializeFilters()` crea `KbqFilter` y `pipeTemplates` desde el `Filter` recibido.
+2. *Cambio de filtro*: `onFilterChange()` convierte `KbqFilter` a `SearchCriteria.filters` mediante `mapFilters()`.
+3. *Visibilidad*: `updateVisibility()` evalúa las `FilterRule` y oculta/muestra filtros.
+4. *Búsqueda*: Si `searchable=true`, el formulario de búsqueda usa `debounceTime(500)` y actualiza `SearchCriteria.query`.
+5. *Paginación*: Si `pageService.pages > 1`, muestra `<app-pagination>` y actualiza `SearchCriteria.page`.
+
+=== En `filter-bar.component.ts` (resumen)
+
+[source, typescript]
+----
+export class FilterBarComponent {
+  filter = input<Filter>(dateFilter);
+  searchCriteria = model<SearchCriteria>({} as SearchCriteria);
+  pageService = inject(PageService);
+
+  protected onFilterChange(kbqFilter: KbqFilter) {
+    let filters = mapFilters(kbqFilter);  // a formato plano
+    this.updateVisibility(kbqFilter);   // aplica reglas
+    this.updateSearchCriteria({ filters });  // emite cambio
+  }
+
+  protected onPageChange(page: number) {
+    this.updateSearchCriteria({ page });
+  }
+
+  private updateSearchCriteria(updates: Partial<SearchCriteria>) {
+    this.searchCriteria.update(current => ({ ...current, ...updates }));
+    this.searchCriteriaService.value = this.searchCriteria();  // notifica al servicio
+  }
+}
+----
+
+=== `SearchCriteriaService` (puente entre explorador y servicio)
+
+[source, typescript]
+----
+@Injectable()
+export class SearchCriteriaService {
+  private _value = signal({} as SearchCriteria);
+
+  get value(): SearchCriteria { return this._value(); }
+  set value(v: SearchCriteria) { this._value.set(v); }
+  reset() { this._value.set({}); }
+}
+----
+
+El servicio (ej. `UserService`) lee `this.criteria?.value` para aplicar filtros:
+- `query`: Búsqueda texto libre.
+- `filters`: Filtros aplicados (convertidos por `mapFilters()`).
+- `page`: Página actual.
+
+=== `PageService` (paginación)
+
+[source, typescript]
+----
+@Injectable()
+export class PageService {
+  private _pages = signal(0);
+  get pages(): number { return this._pages(); }
+  set pages(value: number) { this._pages.set(value); }
+}
+----
+
+El explorador lo inyecta y el `app-pagination` lo usa para mostrar el número de páginas.

@@ -1,0 +1,145 @@
+= Mocks: Interface vs Clase (Cohesión y Encapsulamiento)
+:toc:
+:icons: font
+
+== Ubicación==
+
+Los datos de prueba están en archivos `.mock.ts` en `core/`. Pueden exportar **interfaces (DTOs)** o **clases**:
+
+== Cuándo usar Clases vs Interfaces==
+
+- *Interface/DTO plano*: Cuando el objeto es solo datos, sin lógica interna.
+- *Clase*: Cuando necesitás **procesamiento interno** (ej. constructor que mapea relaciones, valida datos, inicializa colecciones). Usar clases aumenta la **cohesión** (datos + comportamiento juntos) y el **encapsulamiento** (lógica oculta dentro del objeto).
+
+== Ejemplo: `treatments.mock.ts` (Clases para cohesión)
+
+Exporta clases `TreatmentExam`, `TreatmentSession`, y `TreatmentDto` con lógica en el constructor:
+
+[source, typescript]
+----
+import { TreatmentComplexity, TreatmentSessionStatus, TreatmentStatus } from '@core/enums/treatment.enum';
+import { DateTime } from 'luxon';
+
+// Clase para examenes dentales - maneja su propia inicialización
+export class TreatmentExam {
+  id!: number;
+  treatmentSessionId!: number;
+  type!: TreatmentExamType;
+  date!: DateTime;
+  fileUrl!: string;
+  interpretation?: string;
+
+  constructor(init?: Partial<TreatmentExam>) {
+    Object.assign(this, init); // Mapeo de datos
+  }
+}
+
+// Clase para sesiones - maneja colecciones internas
+export class TreatmentSession {
+  id!: number;
+  appointmentId!: string;
+  startDate!: DateTime;
+  endDate!: DateTime;
+  notes!: string;
+  status!: TreatmentSessionStatus;
+  exams?: TreatmentExam[];
+
+  constructor(init?: Partial<TreatmentSession>) {
+    Object.assign(this, init);
+    // Lógica interna: si vienen exams, los instancia como clases
+    if (init?.exams) {
+      this.exams = init.exams.map((exam) => new TreatmentExam(exam));
+    }
+  }
+}
+
+// DTO principal - maneja sesiones como clases
+export class TreatmentDto {
+  id!: number;
+  userId!: number;
+  status!: TreatmentStatus;
+  description!: string;
+  complexity!: TreatmentComplexity;
+  sessions?: TreatmentSession[];
+  // ... más campos
+
+  constructor(init?: Partial<TreatmentDto>) {
+    Object.assign(this, init);
+    // Encapsula el mapeo de sesiones
+    if (init?.sessions) {
+      this.sessions = init.sessions.map((session) => new TreatmentSession(session));
+    }
+  }
+}
+
+// Datos mock exportados como instancias de clase
+export const MOCK_TREATMENTS: TreatmentDto[] = [
+  new TreatmentDto({
+    id: 1,
+    userId: 1,
+    description: 'Endodoncia y Corona',
+    status: TreatmentStatus.Completed,
+    complexity: TreatmentComplexity.Complex,
+    sessions: [
+      new TreatmentSession({
+        id: 101,
+        startDate: DateTime.fromISO('2026-05-01T10:00:00Z'),
+        notes: 'Apertura y extirpación pulpar.',
+        status: TreatmentSessionStatus.Attended,
+      }),
+      // ... más sesiones
+    ],
+  }),
+  // ... más tratamientos
+];
+----
+
+== Ejemplo: `user.mock.ts` (Interface/DTO plano)
+
+Cuando no hay lógica interna, se usan interfaces simples:
+
+[source, typescript]
+----
+export interface UserDto {
+  id: number;
+  fullName: string;
+  gender: Gender;
+  phone: string;
+  // ...
+}
+
+export const MOCK_USERS: UserDto[] = [
+  {
+    id: 1,
+    fullName: 'Juan Pérez',
+    gender: Gender.Male,
+    phone: '+5491112345678',
+  },
+  // ...
+];
+----
+
+== Otros archivos mock==
+
+- `consultation.mock.ts`: Exporta `ConsultationDto`, `MOCK_CONSULTATIONS`
+- `dental-service.mock.ts`: Exporta `DentalServiceDto`, `MOCK_DENTAL_SERVICES`
+- `calendar.mock.ts`: Exporta eventos de calendario mock
+
+== Patrones Observados==
+
+- Los enums exportan tanto el enum crudo como las opciones para selects (`*Options` suffix).
+- Los DTOs se definen junto con los mocks en el mismo archivo o archivo cercano.
+- `SearchCriteria` es el contrato común entre exploradores, servicios y filtros.
+
+=== Mocks: Interface vs Clase (Cohesión y Encapsulamiento)
+
+Se usa **interface** cuando el objeto es solo datos (DTO plano) sin lógica interna.
+
+Se usa **clase** cuando necesitás **procesamiento interno** (ej. mapear colecciones, validar datos, inicializar estado). Esto:
+1. **Aumenta la cohesión**: Mantiene datos y comportamiento relacionado juntos en la misma unidad.
+2. **Mejora el encapsulamiento**: Oculta la lógica de inicialización y transformación dentro del constructor, evitando usar getters o lógica externa.
+
+Ejemplo de cohesión en `treatments.mock.ts`:
+- `TreatmentSession` tiene un constructor que, si recibe `exams`, los instancia como `new TreatmentExam(exam)`.
+- `TreatmentDto` hace lo mismo con `sessions`.
+- El consumidor solo hace `new TreatmentDto(init)` y obtiene un objeto con todo configurado, sin necesidad de getters o lógica externa.

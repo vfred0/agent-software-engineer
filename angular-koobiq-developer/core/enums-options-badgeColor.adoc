@@ -1,0 +1,105 @@
+= Enums, Options y BadgeColor
+:toc:
+:icons: font
+
+== Ubicación
+
+Los enums se definen en `src/app/core/enums/` y se usan para valores fijos tipados.
+
+== Estructura de Enum con Opciones y BadgeColor
+
+Cada enum puede tener un array de `Option<T>` que incluye `badgeColor` (de Kobiq `KbqBadgeColors`) para usar con `app-option-badge`.
+
+=== Ejemplo: ConsultationReason (`core/enums/consultation-reason.ts`)
+
+[source, typescript]
+----
+import { createExtendableOptions } from '@core/utils/utils';
+import { KbqBadgeColors } from '@koobiq/components/badge';
+
+export enum ConsultationReason {
+  ACUTE_PAIN = 'DOLOR_AGUDO',
+  DENTAL_FRACTURE = 'FRACTURA_DENTAL',
+  ROUTINE_CHECKUP = 'CHEQUEO_RUTINA',
+  EMERGENCY = 'URGENCIA',
+}
+
+export const ConsultationReasonOptions = createExtendableOptions<ConsultationReason>([
+  {
+    id: ConsultationReason.ACUTE_PAIN,
+    name: 'Dolor agudo',
+    badgeColor: KbqBadgeColors.FadeError,  // Color del badge
+  },
+  {
+    id: ConsultationReason.DENTAL_FRACTURE,
+    name: 'Fractura dental',
+    badgeColor: KbqBadgeColors.FadeError,
+  },
+  {
+    id: ConsultationReason.ROUTINE_CHECKUP,
+    name: 'Chequeo de rutina',
+    badgeColor: KbqBadgeColors.FadeTheme,
+  },
+  {
+    id: ConsultationReason.EMERGENCY,
+    name: 'Urgencia',
+    badgeColor: KbqBadgeColors.FadeWarning,
+  },
+]);
+----
+
+=== Uso de Enum Options con `app-option-badge`
+
+El componente `app-option-badge` recibe `value` y `options`, y usa `badgeColor` de la opción para colorear el badge.
+
+=== En `consultation-explorer.component.ts` (explorer)
+
+[source, html]
+----
+<!-- Muestra badges de motivos uno al lado del otro -->
+@for (reason of consultation.reasons; track reason) {
+  <app-option-badge [options]="ConsultationReasonOptions" [value]="reason" />
+}
+----
+
+=== El componente `option-badge.component.ts`
+
+[source, typescript]
+----
+@Component({
+  selector: 'app-option-badge',
+  template: `
+    <app-badge [responsive]="true" [color]="option.badgeColor!">
+      <div class="kbq-badge-caption-strong">
+        {{ option.name }}
+      </div>
+    </app-badge>
+  `,
+})
+export class OptionBadgeComponent {
+  value = input<unknown>();
+  options = input<Option<unknown>[]>([]);
+
+  get option(): Option<unknown> {
+    return getOptionByValue(this.value(), this.options());
+  }
+}
+----
+
+=== Ejemplo: Enum de Usuario (`core/enums/user.enum.ts`)
+
+[source, typescript]
+----
+export enum Gender {
+  Male = 'M',
+  Female = 'F',
+  Other = 'O',
+}
+
+// Opciones para selects (usa interfaz Option de core/utils/utils)
+export const GenderOptions: Option<Gender>[] = [
+  { id: Gender.Male, name: 'Masculino' },
+  { id: Gender.Female, name: 'Femenino' },
+  // ...
+];
+----

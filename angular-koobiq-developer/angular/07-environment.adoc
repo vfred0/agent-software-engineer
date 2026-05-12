@@ -1,0 +1,154 @@
+= Environment: Modo InMemory vs JSON-Server
+:toc:
+:icons: font
+
+== Ubicación
+
+Los archivos de entorno están en `src/environments/`.
+
+== Estructura
+
+[source, bash]
+----
+environments/
+├── environment.ts              # Producción (usa JSON-Server por defecto)
+└── environment.development.ts  # Desarrollo (usa InMemory por defecto)
+----
+
+== Interfaz `AppConfig`
+
+Ambos archivos exportan la misma interfaz:
+
+[source, typescript]
+----
+export interface AppConfig {
+  apiBaseUrl: string;   // URL base para JSON-Server (ej. `http://localhost:3000/api`)
+  useInMemory: boolean;  // `true` = usa servicios InMemory, `false` = usa JSON-Server
+}
+----
+
+== Configuración por Defecto
+
+=== Producción (`environment.ts`)
+
+[source, typescript]
+----
+const baseUrl = 'http://localhost:3000';
+
+export const environment: AppConfig = {
+  apiBaseUrl: `${baseUrl}/api`,
+  useInMemory: true, // <-- CAMBIAR a false para usar JSON-Server en producción
+};
+----
+
+=== Desarrollo (`environment.development.ts`)
+
+[source, typescript]
+----
+const baseUrl = 'http://localhost:3000';
+
+export const environment: AppConfig = {
+  apiBaseUrl: `${baseUrl}`, // Sin `/api` para JSON-Server directo
+  useInMemory: true,
+};
+----
+
+== Cómo Cambiar de Modo
+
+=== Paso 1: Modificar `useInMemory`
+
+[source, typescript]
+----
+// En environment.ts (o development)
+export const environment: AppConfig = {
+  apiBaseUrl: 'http://localhost:3000/api',
+  useInMemory: false, // <-- Ahora usa JSON-Server
+};
+----
+
+=== Paso 2: Configurar Proveedor de Servicio
+
+En el módulo o componente que usa el servicio, proveer el token con la implementación correcta:
+
+[source, typescript]
+----
+import { USER_SERVICE_TOKEN } from '@shared/services/service.tokens';
+import { UserService } from '@shared/services/users/user.service';
+import { UserInMemoryService } from '@shared/services/users/user-in-memory.service';
+import { environment } from '@environments/environment';
+
+@Component({
+  // ...
+  providers: [
+    {
+      provide: USER_SERVICE_TOKEN,
+      useClass: environment.useInMemory ? UserInMemoryService : UserService,
+    },
+  ],
+})
+export class UserExplorerComponent { /* ... */ }
+----
+
+== Uso de `apiBaseUrl` en Servicios
+
+Los servicios regulares (no InMemory) usan `environment.apiBaseUrl` para construir la URL del endpoint:
+
+[source, typescript]
+----
+// En user.service.ts
+private readonly apiUrl = `${environment.apiBaseUrl}/users`;
+
+readonly findAll = createOperation(
+  () => this.http.get<UserDto[]>(this.apiUrl),
+  (err) => this.handleError(err),
+);
+----
+
+== Servicios InMemory
+
+Cuando `useInMemory: true`, los servicios InMemory:
+1. Usan un `Map` local con datos mock (de archivos `.mock.ts` en `core/`).
+2. Simulan latencia con `delay(500)` (ver `user-in-memory.service.ts`).
+3. No requieren servidor backend.
+
+[source, typescript]
+----
+// En user-in-memory.service.ts
+public store = new Map<number, UserDto>(MOCK_USERS.map((u) => [u.id, u]));
+
+protected override pipe<R>(source: Observable<R>): Observable<R> {
+  return source.pipe(delay(500)); // Simula latencia
+}
+----
+
+== JSON-Server
+
+Cuando `useInMemory: false`, se usa `json-server` para simular una API REST:
+
+=== Archivo de Datos (`db.json` en raíz)
+
+[source, json]
+----
+{
+  "users": [
+    { "id": 1, "fullName": "Juan Pérez", "phone": "+5491112345678" }
+  ],
+  "treatments": [],
+  "consultations": []
+}
+----
+
+=== Iniciar JSON-Server
+
+[source, bash]
+----
+npx json-server --watch db.json --port 3000
+----
+
+La API estará disponible en `http://localhost:3000/users`, etc.
+
+== Patrones Observados
+
+- La configuración es la misma para todos los servicios (usan el mismo token de entorno).
+- Los servicios InMemory extienden `BaseCrudService` y usan `Map` para almacenamiento.
+- No hay cambios en el código del explorador/detail al cambiar de modo; solo cambia el proveedor.
