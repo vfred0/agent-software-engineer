@@ -47,43 +47,43 @@ Ejecutá el comando desde la raíz de tu proyecto destino.
 [source,bash]
 .Claude Code (.claude/)
 ----
-mkdir -p .claude/skills
-cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .claude/skills/
+mkdir -p ~/.claude/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.claude/skills/
 ----
 
 [source,bash]
 .Gemini CLI (.gemini/)
 ----
-mkdir -p .gemini/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .gemini/skills/
+mkdir -p ~/.gemini/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.gemini/skills/
 ----
 
 [source,bash]
 .GitHub Copilot (.github/)
 ----
-mkdir -p .github/skills
-cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .github/skills/
+mkdir -p ~/.github/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.github/skills/
 ----
 
 [source,bash]
 .OpenCode (.opencode/)
 ----
-mkdir -p .opencode/skills
-cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .opencode/skills/
+mkdir -p ~/.opencode/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.opencode/skills/
 ----
 
 [source,bash]
 .Cursor (.cursor/)
 ----
-mkdir -p .cursor/skills
-cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .cursor/skills/
+mkdir -p ~/.cursor/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.cursor/skills/
 ----
 
 [source,bash]
 .Windsurf (.windsurf/)
 ----
-mkdir -p .windsurf/skills
-cp -r /path/to/agent-software-engineer/{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} .windsurf/skills/
+mkdir -p ~/.windsurf/skills
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.windsurf/skills/
 ----
 
 [TIP]
