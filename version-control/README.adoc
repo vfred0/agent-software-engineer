@@ -1,0 +1,799 @@
+= Version Control Guide
+:toc: left
+:toclevels: 3
+:sectnums:
+:icons: font
+:experimental:
+:source-highlighter: highlight.js
+
+[NOTE]
+====
+Esta guía es *agnóstica al framework y lenguaje*. Los principios aplican a cualquier proyecto que use git, conventional commits y semver. Los ejemplos concretos están tomados de `koobiq/angular-components`, un proyecto open source que implementa estas prácticas de forma ejemplar.
+====
+
+== Visión General del Flujo
+
+Todo el ciclo de vida de un cambio — desde el primer commit hasta el release en producción — sigue este camino:
+
+[source,text]
+----
+  CÓDIGO              COLABORACIÓN              RELEASE
+
+  git commit          Abrir PR                  Decidir bump
+  (conventional)  →   (título = commit)    →    (major/minor/patch)
+                           ↓                          ↓
+                      CI checks + review        Generar changelog
+                           ↓                          ↓
+                      squash-merge           Commit de bump + tag
+                      a main                          ↓
+                                             Push tag → CI publica
+----
+
+Tres pilares que sostienen todo:
+
+. *Conventional Commits* — lenguaje común entre commits, PRs y changelog
+. *CI como guardián* — ningún código roto llega a `main`
+. *Release deliberado* — el bump de versión es siempre una decisión consciente
+
+---
+
+== Conventional Commits
+
+=== Formato
+
+[source,text]
+----
+<type>(<scope>): <subject>
+
+[body opcional]
+
+[footer opcional]
+----
+
+[IMPORTANT]
+====
+Header máximo recomendado: *72–120 caracteres*. Configurar el límite en commitlint según la convención del proyecto.
+====
+
+=== Tipos disponibles
+
+[cols="1,3,1", options="header"]
+|===
+| Tipo | Cuándo usarlo | Changelog
+
+| `feat`
+| Nueva funcionalidad visible para el usuario
+| ✅
+
+| `fix`
+| Corrección de bug
+| ✅
+
+| `perf`
+| Mejora de rendimiento
+| ✅
+
+| `revert`
+| Revertir un commit anterior
+| ✅
+
+| `refactor`
+| Reestructuración sin nueva funcionalidad ni fix
+| según config
+
+| `docs`
+| Solo documentación
+| según config
+
+| `test`
+| Agregar o corregir tests
+| ✗
+
+| `chore`
+| Mantenimiento, dependencias, tooling
+| ✗
+
+| `ci`
+| Cambios en CI/CD
+| ✗
+
+| `build`
+| Sistema de build, scripts
+| ✗
+
+| `style`
+| Formato, espacios — sin cambio de lógica
+| ✗
+|===
+
+=== Scopes — cómo definirlos
+
+El scope identifica *qué parte del sistema* afecta el commit. Su definición es específica de cada proyecto:
+
+[cols="2,3", options="header"]
+|===
+| Tipo de proyecto | Scopes típicos
+
+| Monorepo de paquetes
+| `core`, `ui`, `cli`, `api`
+
+| Librería de componentes
+| `button`, `select`, `modal`, `dropdown`
+
+| App por features
+| `auth`, `billing`, `dashboard`, `notifications`
+
+| Infraestructura
+| `db`, `cache`, `queue`, `deploy`
+|===
+
+Los scopes se pueden validar automáticamente con `commitlint` definiendo un `scope-enum` en `.commitlintrc.js`.
+
+=== Reglas del subject
+
+* Imperativo presente → `add`, `fix`, `remove` (NO `added`, `adding`)
+* Minúscula inicial
+* Sin punto al final
+
+[source,bash]
+.Correcto
+----
+fix(select): prevent focus loss on external click
+feat(auth): add OAuth2 provider support
+chore(deps): bump typescript to 5.4.0
+----
+
+[source,bash]
+.Incorrecto
+----
+fix(select): Prevented focus loss.   # mayúscula + punto
+feat(auth): Adding OAuth2 support    # gerundio
+fix: something                       # scope ausente en monorepo
+----
+
+=== Body — explicar el por qué
+
+[source,text]
+----
+fix(select): prevent value reset on async options load
+
+Previously the control reset to null when options were provided
+asynchronously, causing a visual flicker and form dirty state.
+----
+
+El diff ya muestra *qué* cambió. El body explica *por qué* fue necesario.
+
+=== Breaking changes
+
+[source,text]
+----
+refactor(button): remove deprecated `color` input
+
+BREAKING CHANGE: The `color` input has been removed.
+Use the `variant` input instead: [basic, primary, secondary].
+----
+
+[NOTE]
+====
+El token `BREAKING CHANGE:` en el footer es lo que eleva el bump a *MAJOR* en herramientas automáticas. Con bumping manual, es la señal para que el release manager decida major.
+====
+
+=== Integración con trackers internos
+
+Si el equipo usa un tracker (Jira, Linear, etc.), la referencia va en el subject:
+
+[source,text]
+----
+fix(navbar): icon color for active state (#DS-5019)
+fix(auth): token expiry not refreshed [PROJ-423]
+----
+
+La posición y formato de la referencia los define el equipo — lo importante es ser consistente.
+
+=== PR title como conventional commit
+
+Si el proyecto usa squash-merge, el título del PR se convierte en el commit message en `main`. Por eso el título del PR también debe ser un conventional commit válido — y debe validarse en CI.
+
+[source,text]
+----
+# Workflow CI: commitlint sobre el título del PR
+- name: Lint PR title
+  run: echo "${{ github.event.pull_request.title }}" | npx commitlint
+----
+
+---
+
+== Pull Requests
+
+=== El título es un commit
+
+Si el proyecto usa squash-merge, el título del PR = el commit en `main`. Validarlo en CI es no-negociable.
+
+=== Template mínimo
+
+[source,markdown]
+----
+## Summary
+
+<!-- Qué cambia y por qué. 2-4 oraciones. -->
+
+## Notable changes
+
+<!--
+- **added** X because Y
+- **updated** Z to fix W
+- **removed** deprecated A
+-->
+
+## What should reviewers focus on?
+
+<!-- Una área de riesgo o pregunta específica. -->
+----
+
+=== Flujo completo
+
+[source,text]
+----
+1. Crear rama desde main
+   git checkout -b fix/select-async-reset
+
+2. Commits con conventional commits
+
+3. Abrir PR
+   - Título = conventional commit válido
+   - Llenar template completo
+   - Si no está listo → Draft
+
+4. Cuando esté listo
+   - Sacar del modo Draft
+   - CI debe estar en verde
+
+5. Code review
+   - Al menos 1-2 approvals según política del proyecto
+
+6. Squash merge
+   - Todos los commits → 1 commit en main
+   - Mensaje = título del PR
+----
+
+=== Estrategias de merge
+
+[cols="1,2,2", options="header"]
+|===
+| Estrategia | Historial en main | Cuándo usarla
+
+| *Squash merge*
+| Un commit por PR, limpio
+| Proyectos con commits WIP por PR (recomendado)
+
+| *Merge commit*
+| Todos los commits + merge commit
+| Cuando el historial granular del branch importa
+
+| *Rebase merge*
+| Commits del branch, sin merge commit
+| Cuando cada commit del branch es limpio y atómico
+|===
+
+=== Checks de CI mínimos
+
+[cols="1,2", options="header"]
+|===
+| Categoría | Qué valida
+
+| Commit format
+| Título del PR como conventional commit
+
+| Linting
+| Estilo, formateo, reglas del linter (0 warnings)
+
+| Tests
+| Suite completa de tests unitarios y/o e2e
+
+| Build
+| El proyecto compila sin errores
+
+| API guard (si aplica)
+| Sin cambios no aprobados en la API pública
+|===
+
+=== Anti-patrones
+
+* *Título libre* → historial de `main` ilegible
+* *Template vacío* → el reviewer adivina el contexto
+* *PR gigante (>400 líneas)* → dividir en PRs encadenados
+* *Merge sin CI verde* → aunque "sea un cambio pequeño"
+* *Múltiples concerns* → un PR, una razón de existir
+
+---
+
+== Issues
+
+=== Bug report — estructura mínima
+
+[source,markdown]
+----
+## Description
+Qué está fallando y en qué contexto.
+
+## Reproduction steps
+1. Hacer X
+2. Configurar Y con valor Z
+3. Observar el resultado
+
+## Expected behavior
+Lo que debería suceder.
+
+## Environment
+- Versión del paquete:
+- Sistema operativo:
+- Browser (si aplica):
+----
+
+[IMPORTANT]
+====
+Un bug sin pasos de reproducción no se puede verificar. Sin verificación, no se puede cerrar.
+====
+
+=== Relación issues ↔ commits ↔ PRs
+
+[source,text]
+----
+Issue #42 (bug: select resets value)
+    ↓
+Commit: fix(select): prevent value reset on async options load
+    ↓
+PR: fix(select): prevent value reset on async options load
+    body: "Closes #42"
+    ↓
+Merge → issue #42 se cierra automáticamente
+----
+
+Para cerrar automáticamente al mergear, incluir en el body del PR:
+
+[source,text]
+----
+Closes #42
+Fixes #17
+Resolves #99
+----
+
+=== Anti-patrones
+
+* *Bug sin reproducción* — no se puede verificar ni cerrar
+* *Un issue, múltiples bugs* — un issue = un problema
+* *Issues como chat* — para discusiones, usar Discussions o Slack
+
+---
+
+== Semantic Versioning
+
+=== Esquema
+
+[source,text]
+----
+MAJOR.MINOR.PATCH
+
+1.4.2   → formato estándar
+v1.4.2  → con prefijo v (convención del proyecto — elegir uno y ser consistente)
+----
+
+[cols="1,2,2", options="header"]
+|===
+| Parte | Cuándo se incrementa | Resetea
+
+| `MAJOR`
+| Breaking change — rompe la API pública
+| MINOR y PATCH vuelven a 0
+
+| `MINOR`
+| Nueva funcionalidad backwards compatible
+| PATCH vuelve a 0
+
+| `PATCH`
+| Bug fix backwards compatible
+| —
+|===
+
+=== Conventional commits → semver
+
+[cols="1,1", options="header"]
+|===
+| Tipo de commit | Bump
+
+| `fix:`
+| PATCH
+
+| `feat:`
+| MINOR
+
+| `BREAKING CHANGE:` en footer
+| MAJOR
+|===
+
+Con herramientas como `semantic-release`, el bump se determina automáticamente. Sin automatización, el release manager lo decide basándose en los commits desde el último tag.
+
+=== Prereleases
+
+[source,text]
+----
+2.0.0-alpha.1    → primera alpha
+2.0.0-beta.3     → tercera beta
+2.0.0-rc.1       → primer release candidate
+2.0.0            → versión estable (promueve el rc)
+----
+
+[source,bash]
+----
+# Publicar prerelease (npm)
+npm publish --tag next
+
+# Publicar estable
+npm publish --tag latest
+----
+
+=== Tags de git
+
+[source,bash]
+----
+# Siempre usar tags anotados para releases
+git tag -a 1.5.0 -m "Release 1.5.0"
+
+# Verificar
+git show 1.5.0
+
+# Push del tag (activa CI de publish)
+git push origin 1.5.0
+----
+
+[WARNING]
+====
+Elegir *prefijo v* o *sin prefijo* y mantenerlo consistente. El patrón del tag debe coincidir con el trigger de CI/CD — si el workflow usa `*.*.*` y el tag es `v1.5.0`, el trigger no dispara.
+====
+
+=== Anti-patrones
+
+* *Breaking change como MINOR* — rompe proyectos de usuarios
+* *Tags lightweight* — sin metadata de quién y cuándo
+* *Inconsistencia de prefijo v* — rompe triggers de CI
+* *Prerelease indefinida* — `rc.1` sin nunca llegar a estable
+
+---
+
+== Changelog
+
+=== Qué incluir
+
+[cols="1,1,1", options="header"]
+|===
+| Tipo | Aparece | Sección
+
+| `feat`
+| ✅
+| Features / Added
+
+| `fix`
+| ✅
+| Bug Fixes / Fixed
+
+| `perf`
+| ✅
+| Performance
+
+| `BREAKING CHANGE`
+| ✅
+| Breaking Changes
+
+| `refactor`, `docs`
+| según config
+| —
+
+| `chore`, `test`, `ci`, `build`, `style`
+| ✗
+| —
+|===
+
+=== Heading level por tipo de versión
+
+[source,markdown]
+----
+# 1.5.0 (2024-03-15)    ← MINOR o MAJOR: H1 (cambio significativo)
+
+### Features
+* **tooltip:** add `placement` input (#123) (a3f2b1c)
+
+## 1.4.2 (2024-02-20)   ← PATCH: H2 (hotfix)
+
+### Bug Fixes
+* **navbar:** icon color in active state (#109) (5a97c22)
+----
+
+=== Herramientas
+
+[cols="1,3", options="header"]
+|===
+| Herramienta | Cuándo usarla
+
+| `conventional-changelog-cli`
+| CLI simple, changelog manual bajo demanda
+
+| `standard-version`
+| Bump + changelog en un comando, proceso semi-automático
+
+| `semantic-release`
+| Release completamente automático desde CI
+
+| `changesets`
+| Monorepos con versiones independientes por paquete
+|===
+
+---
+
+== Release Workflow
+
+=== Flujo estándar
+
+[source,text]
+----
+                   STAGING                        PUBLISH
+
+main (limpio)  →  Decidir bump  →  commit bump  →  tag  →  push tag
+                  (manual o CLI)   chore: bump       X.Y.Z
+                                   version to                │
+                                   X.Y.Z w/                  ↓
+                                   changelog          CI/CD: publish
+                                                      al registry
+----
+
+=== Commit de bump
+
+[source,bash]
+----
+# Siempre chore: para que no aparezca en el changelog del usuario
+chore: bump version to 1.5.0 w/ changelog
+
+# Alternativa con semantic-release
+chore(release): 1.5.0
+----
+
+=== Tag y push
+
+[source,bash]
+----
+# 1. Tag anotado (NUNCA lightweight para releases)
+git tag -a 1.5.0 -m "Release 1.5.0"
+
+# 2. Push del commit de bump
+git push origin main
+
+# 3. Push del tag → activa el workflow de publish en CI
+git push origin 1.5.0
+----
+
+=== GitHub Releases — sincronizar el CHANGELOG
+
+GitHub tiene su propia sección de Releases (distinta del tag). Es donde los usuarios van a ver qué cambió sin leer el código. `gh release create` es el puente entre el `CHANGELOG.md` local y esa sección.
+
+[IMPORTANT]
+====
+El tag debe estar en GitHub *antes* de crear el release. Siempre `git push origin X.Y.Z` primero.
+====
+
+[source,bash]
+----
+# Crear el GitHub Release con el contenido del changelog
+gh release create 1.5.0 \
+  --title "1.5.0" \
+  --notes "$(cat <<'EOF'
+## What's new in 1.5.0
+
+### Features
+
+* **tooltip:** add `placement` input as replacement for `position`
+* **select:** add clearable option
+
+### Bug Fixes
+
+* **select:** prevent value reset on async options load
+EOF
+)"
+
+# Verificar que quedó bien
+gh release view 1.5.0
+
+# Listar todos los releases
+gh release list
+----
+
+Para prereleases:
+
+[source,bash]
+----
+gh release create 2.0.0-rc.1 \
+  --title "2.0.0-rc.1 (Release Candidate)" \
+  --prerelease \
+  --notes "Pre-release for testing. Not recommended for production."
+----
+
+El flag `--prerelease` impide que aparezca como "Latest" para los usuarios que siguen el proyecto.
+
+=== Ciclo completo: del commit al release publicado
+
+[source,text]
+----
+Nuevos commits en main
+        ↓
+Actualizar CHANGELOG.md con los cambios de esta versión
+        ↓
+Actualizar "version" en package.json (o equivalente)
+        ↓
+git add CHANGELOG.md package.json
+git commit -m "chore: bump version to X.Y.Z w/ changelog"
+        ↓
+git tag -a X.Y.Z -m "Release X.Y.Z"
+        ↓
+git push origin main
+git push origin X.Y.Z
+        ↓
+gh release create X.Y.Z \
+  --title "X.Y.Z" \
+  --notes "$(contenido del CHANGELOG para esta versión)"
+        ↓
+✅ GitHub Releases actualizado — usuarios ven qué cambió
+----
+
+=== Gotcha — SSH vs HTTPS con `gh`
+
+`gh` autentica por HTTPS. Si el remote usa SSH (`git@github.com:...`), los push fallan con `Permission denied (publickey)` aunque `gh auth status` muestre "Logged in".
+
+[source,bash]
+----
+# Diagnóstico
+gh auth status        # debe decir: "Git operations protocol: https"
+git remote -v         # si dice git@github.com: → hay conflicto
+
+# Fix: cambiar a HTTPS
+git remote set-url origin https://github.com/owner/repo.git
+----
+
+=== Prereleases
+
+[source,bash]
+----
+# Publicar rc
+git tag -a 2.0.0-rc.1 -m "Release 2.0.0-rc.1"
+git push origin 2.0.0-rc.1
+npm publish --tag next          # no sobreescribe 'latest'
+
+# Promover a estable cuando esté listo
+git tag -a 2.0.0 -m "Release 2.0.0"
+git push origin 2.0.0
+npm publish --tag latest
+----
+
+=== Checklist pre-release
+
+[source,bash]
+----
+# main está limpio y actualizado
+git status && git log origin/main..HEAD
+
+# Todos los CI checks pasan en main
+
+# Sin vulnerabilidades críticas
+npm audit --audit-level=critical
+
+# API pública sin cambios no aprobados (si aplica)
+----
+
+=== Anti-patrones críticos
+
+[cols="2,3", options="header"]
+|===
+| Error | Consecuencia
+
+| Push del tag sin commit de bump previo
+| El tag apunta al commit equivocado
+
+| Tag lightweight en lugar de anotado
+| Se pierden las release notes y metadata
+
+| Inconsistencia en prefijo del tag
+| El trigger de CI no matchea — no hay publish
+
+| Breaking change como MINOR
+| Rompe proyectos de usuarios — destruye confianza
+
+| Publicar desde local en lugar de CI
+| Builds no reproducibles, dependientes del entorno local
+
+| Release sin CI verde
+| Publica código con tests fallando
+
+| Remote SSH con `gh` en modo HTTPS
+| `Permission denied (publickey)` — fix: `git remote set-url origin https://...`
+
+| `gh release create` antes de `git push origin tag`
+| El release apunta a un tag que no existe en GitHub — error o estado inconsistente
+|===
+
+---
+
+== Configuración Típica (GitHub Actions)
+
+=== commitlint.yml — Validar título del PR
+
+[source,yaml]
+----
+name: Commitlint
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci
+      - run: echo "${{ github.event.pull_request.title }}" | npx commitlint
+----
+
+=== publish.yml — Publicar en push de tag
+
+[source,yaml]
+----
+name: Publish
+on:
+  push:
+    tags:
+      - '*.*.*'    # Sin prefijo v
+      # - 'v*.*.*' # Con prefijo v
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+----
+
+---
+
+== Referencias rápidas
+
+[source,bash]
+.Comandos cotidianos
+----
+# Verificar que tu commit pasa commitlint
+echo "fix(button): correct icon alignment" | npx commitlint
+
+# Ver el changelog que se generaría
+npx conventional-changelog -p angular --dry-run
+
+# Ver los últimos tags
+git tag -l | sort -V | tail -20
+
+# Información completa de un tag
+git show 1.5.0
+----
+
+[source,text]
+.Archivos clave en cualquier proyecto
+----
+.commitlintrc.js / .commitlintrc.yml  → reglas de tipos y scopes
+.github/pull_request_template.md      → template de PR
+.github/ISSUE_TEMPLATE/               → templates de issues
+.github/workflows/commitlint.yml      → validación del título del PR
+.github/workflows/publish.yml         → trigger de publicación por tag
+CHANGELOG.md                          → historial de versiones para usuarios
+package.json → "version"              → versión actual del proyecto
+----
