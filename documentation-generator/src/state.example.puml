@@ -1,15 +1,191 @@
-@startuml vendor-use-cases-context
-!include settings.puml
+@startuml order-processing-states
+skinparam roundcorner 20
+skinparam lineThickness 2
+skinparam state {
+  BackgroundColor<<req>>  #D6EAF8
+  BorderColor<<req>>      #2E86C1
+  BackgroundColor<<beh>>  #FEF9E7
+  BorderColor<<beh>>      #D4AC0D
+  BackgroundColor<<ret>>  #D5F5E3
+  BorderColor<<ret>>      #1E8449
+  BackgroundColor<<err>>  #FADBD8
+  BorderColor<<err>>      #C0392B
+  BackgroundColor<<skip>> #F2F3F4
+  BorderColor<<skip>>     #717D7E
+}
 
-state(INITIAL_STATE, AUTENTICACION)
-state(AUTENTICACION, ABIERTO_APP)
+title Order Processing — Contratos de Componentes y Estados
 
-state ABIERTO_VISITAS_CITAS: Mostrar detalles de citas\nCrear actividad técnica\nMostrar citas realizadas
-state ABIERTO_ACTIVIDADES_CALENDARIO: Mostrar eventos\nFiltrar eventos
-state ABIERTO_ACTIVIDADES_SERVICIOS: CRUD de actividades
-state ABIERTO_ACTIVIDADES_TRATAMIENTOS: CRUD de actividades
+[*] --> Recepcion
 
-state ABIERTO_CALENDARIO: Mostrar detalles de calendario
-state(ABIERTO_APP, ABIERTO_VISITAS_CITAS, LEFT)
-state(ABIERTO_APP,ABIERTO_ACTIVIDADES_CALENDARIO, RIGHT)
+
+state "OrderController" as Recepcion {
+  state "PRECONDICIÓN" as rec_req <<req>>
+  rec_req : · POST /orders  {customerId, items[]}
+  --
+  state "COMPORTAMIENTO" as rec_beh <<beh>>
+  rec_beh : · GlobalExceptionHandler  mapea excepciones a HTTP
+  rec_beh : · delega a  OrderService.process(OrderRequest)
+  --
+  state "DEVUELVE" as rec_ret <<ret>>
+  rec_ret : · HTTP 200  OrderResult (JSON)
+  rec_ret : · HTTP 409  DuplicateOrderException
+  rec_ret : · HTTP 402  PaymentDeclinedException
+  rec_ret : · HTTP 500  Exception
+}
+
+Recepcion --> VerificacionStock
+
+state "InventoryService — Verificación de Stock" as VerificacionStock {
+  state "PRECONDICIÓN" as vs_req <<req>>
+  vs_req : · List<OrderItem>  (productId, quantity)
+  --
+  state "COMPORTAMIENTO" as vs_beh <<beh>>
+  vs_beh : · consulta  TBL_INVENTORY  por  productId
+  vs_beh : · verifica  stock >= quantity  por cada item
+  --
+  state "DEVUELVE" as vs_ret <<ret>>
+  vs_ret : · List<StockReservation>  si disponible
+  vs_ret : · OutOfStockException  si stock insuficiente
+}
+
+VerificacionStock --> ChoiceStock
+state "¿stock disponible?" as ChoiceStock <<choice>>
+ChoiceStock --> SinStock    : no — OutOfStockException
+ChoiceStock --> Pago        : sí
+
+state "OUT_OF_STOCK  ·  HTTP 409\nOutOfStockException" as SinStock <<err>>
+SinStock --> [*]
+
+state "PaymentService — Procesamiento de Pago" as Pago {
+  state "PRECONDICIÓN" as pago_req <<req>>
+  pago_req : · customerId  +  totalAmount
+  pago_req : · PaymentGatewayClient  (configurado con credenciales)
+  --
+  state "COMPORTAMIENTO" as pago_beh <<beh>>
+  pago_beh : · @Retryable(retryFor = GatewayTimeoutException.class)
+  pago_beh : · backoff exponencial  con  RETRY_DELAY_MS
+  pago_beh : · llama  PaymentGateway.authorize(customerId, amount)
+  pago_beh : · lanza  PaymentDeclinedException  si rechazado
+  --
+  state "DEVUELVE" as pago_ret <<ret>>
+  pago_ret : · PaymentConfirmation(transactionId, status)
+  pago_ret : · PaymentDeclinedException  →  HTTP 402
+}
+
+Pago --> ChoicePago
+state "¿pago autorizado?" as ChoicePago <<choice>>
+ChoicePago --> PagoRechazado : no — PaymentDeclinedException
+ChoicePago --> Orquestacion  : sí
+
+state "PAYMENT_DECLINED  ·  HTTP 402\nPaymentDeclinedException" as PagoRechazado <<err>>
+PagoRechazado --> [*]
+
+state "OrderOrchestrator — Preparación de Items" as Orquestacion {
+  state "PRECONDICIÓN" as orc_req <<req>>
+  orc_req : · List<StockReservation>  +  PaymentConfirmation
+  orc_req : · fecha de orden
+  --
+  state "COMPORTAMIENTO" as orc_beh <<beh>>
+  orc_beh : · patrón Strategy  →  resuelve  ItemPreparer  por  ProductType
+  orc_beh : · isPreparationTarget():  excluye  DIGITAL  y  BUNDLE
+  orc_beh :   PHYSICAL   →  WarehousePreparer
+  orc_beh :   PERISHABLE →  ColdChainPreparer
+  --
+  state "DEVUELVE" as orc_ret <<ret>>
+  orc_ret : · List<PreparedItem>  acumulados al finalizar el loop
+}
+
+Orquestacion --> ChoiceOrq
+state "¿tipo de producto?" as ChoiceOrq <<choice>>
+ChoiceOrq --> TipoNoTarget  : !isPreparationTarget() — DIGITAL | BUNDLE
+ChoiceOrq --> Idempotencia  : isPreparationTarget()
+ChoiceOrq --> Despacho      : sin más items
+
+state "Tipo no preparable\nomitir + registrar en log" as TipoNoTarget <<skip>>
+TipoNoTarget --> Orquestacion : siguiente item
+
+state "IdempotencyService — Verificación de Duplicados" as Idempotencia {
+  state "PRECONDICIÓN" as ide_req <<req>>
+  ide_req : · orderId  +  itemId
+  --
+  state "COMPORTAMIENTO" as ide_beh <<beh>>
+  ide_beh : · consulta  TBL_ORDER_LOG  por  orderId + itemId
+  --
+  state "DEVUELVE" as ide_ret <<ret>>
+  ide_ret : · PreparedItem.skipped()  si ya preparado
+  ide_ret :   status = ALREADY_PROCESSED  ·  errors = 0
+  ide_ret : · continua a  WarehouseService.prepare()  si es nuevo
+}
+
+Idempotencia --> ChoiceIdemp
+state "¿ya preparado?" as ChoiceIdemp <<choice>>
+ChoiceIdemp --> YaPreparado : sí — orderId+itemId ya registrado
+ChoiceIdemp --> Preparacion : no — nuevo item
+
+state "ALREADY_PROCESSED\nPreparedItem.skipped()" as YaPreparado <<skip>>
+YaPreparado --> Orquestacion : siguiente item
+
+
+state "WarehouseService — Preparación Física" as Preparacion {
+  state "PRECONDICIÓN" as prep_req <<req>>
+  prep_req : · StockReservation  (productId, quantity, warehouseId)
+  --
+  state "COMPORTAMIENTO" as prep_beh <<beh>>
+  prep_beh : · @Transactional(propagation = REQUIRES_NEW)
+  prep_beh : · UPDATE  TBL_INVENTORY  →  estado RESERVADO
+  prep_beh : · INSERT  TBL_ORDER_LOG  (SEQ_ORDER_LOG)
+  --
+  state "DEVUELVE" as prep_ret <<ret>>
+  prep_ret : · PreparedItem(itemId, warehouseLocation, status)
+  prep_ret : · garantía: persiste aunque tx principal falle  (REQUIRES_NEW)
+}
+
+Preparacion --> Orquestacion : siguiente item
+
+state "ShippingService — Despacho" as Despacho {
+  state "PRECONDICIÓN" as desp_req <<req>>
+  desp_req : · List<PreparedItem>  +  customerAddress
+  --
+  state "COMPORTAMIENTO" as desp_beh <<beh>>
+  desp_beh : · genera  ShippingLabel  vía  CarrierClient
+  desp_beh : · INSERT  TBL_SHIPMENT  con  trackingCode
+  --
+  state "DEVUELVE" as desp_ret <<ret>>
+  desp_ret : · ShipmentConfirmation(trackingCode, estimatedDelivery)
+}
+
+Despacho --> ConstruirResultado
+
+
+
+state "OrderResult.of() — Construcción del Resultado" as ConstruirResultado {
+  state "PRECONDICIÓN" as cr_req <<req>>
+  cr_req : · List<PreparedItem>  +  ShipmentConfirmation  +  PaymentConfirmation
+  --
+  state "COMPORTAMIENTO" as cr_beh <<beh>>
+  cr_beh : · ALREADY_PROCESSED     todos los items  status == ALREADY_PROCESSED
+  cr_beh : · COMPLETED_WITH_SKIPS  al menos un  TipoNoTarget  omitido
+  cr_beh : · COMPLETED              caso base  (todos preparados)
+  --
+  state "DEVUELVE" as cr_ret <<ret>>
+  cr_ret : · OrderResult(orderId, items, status, trackingCode)
+}
+
+ConstruirResultado --> ResultadoFinal
+
+
+state "Resultado Final  ·  HTTP 200" as ResultadoFinal {
+  state "COMPLETED" as rf_ok <<ret>>
+  rf_ok : todos los items preparados  ·  pago y despacho exitosos
+  --
+  state "COMPLETED_WITH_SKIPS" as rf_warn <<beh>>
+  rf_warn : algún  PreparedItem  de tipo no preparable  omitido
+  --
+  state "ALREADY_PROCESSED" as rf_skip <<skip>>
+  rf_skip : todos los items  ya preparados  previamente
+}
+
+ResultadoFinal --> [*]
+
 @enduml
