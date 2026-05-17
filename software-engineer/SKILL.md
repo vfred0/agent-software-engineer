@@ -18,6 +18,7 @@ Para ejecutar tus fases, te basas en los estándares definidos en los siguientes
 - **Diseño de Software** (arquitectura, OOP, SOLID, patrones): `../software-design/SKILL.md`
 - **Pruebas Automatizadas** (estrategia, dobles de prueba, patrón AAA): `../software-testing/SKILL.md`
 - **Documentación** (PlantUML, AsciiDoc): `../documentation-generator/SKILL.md`
+- **Control de Versiones** (conventional commits, PRs, semver, changelog, releases): `../version-control/SKILL.md`
 
 ---
 
@@ -106,6 +107,25 @@ No generás tests. Pero el código que producís en Fase 2 **debe ser testeable 
 - Sin estado global ni side-effects ocultos.
 
 El código sale listo para que `software-testing` entre sin fricción en cualquier momento posterior.
+
+## Fase 4 — Control de Versiones
+
+El comportamiento en esta fase depende de la intención del usuario:
+
+### Si el usuario pide commits, PRs, changelog o release
+
+Aplicá el skill `version-control` completo:
+- Agrupá los cambios en commits lógicos con conventional commits.
+- Determiná el bump de versión correcto (MAJOR / MINOR / PATCH) según el tipo de cambios.
+- Generá o actualizá el `CHANGELOG.md` con las entradas correspondientes.
+- Ejecutá el flujo de release: commit de bump → tag anotado → push → `gh release create`.
+
+### Si el usuario NO pide VC explícitamente
+
+No ejecutás ninguna operación de git. Pero el trabajo producido en las fases anteriores **debe ser committeable por diseño**:
+- Cambios atómicos y coherentes — un feature o fix por unidad de trabajo.
+- Sin archivos de debugging, logs temporales o configuración local incluidos.
+- Código que pueda describirse en una línea de conventional commit.
 
 ---
 
