@@ -35,8 +35,19 @@ Para que un agente funcione correctamente, debe seguir una estructura de directo
     │   ├── unit-testing.md
     │   ├── unit-testing-test-cases.md
     │   └── unit-testing-test-doubles.md
-    └── software-engineer/
+    ├── software-engineer/
+    │   └── SKILL.md
+    ├── spring-boot-developer/
+    │   └── SKILL.md
+    └── version-control/
         ├── SKILL.md
+        ├── changelog.md
+        ├── conventional-commits.md
+        ├── github-release-template.md
+        ├── issues.md
+        ├── pull-requests.md
+        ├── release-workflow.md
+        └── semver.md
 ----
 
 == Instalación
@@ -62,28 +73,28 @@ cp -r ./{software-engineer,software-design,software-testing,documentation-genera
 .GitHub Copilot (.github/)
 ----
 mkdir -p ~/.github/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.github/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.github/skills/
 ----
 
 [source,bash]
 .OpenCode (.opencode/)
 ----
 mkdir -p ~/.opencode/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.opencode/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.opencode/skills/
 ----
 
 [source,bash]
 .Cursor (.cursor/)
 ----
 mkdir -p ~/.cursor/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.cursor/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.cursor/skills/
 ----
 
 [source,bash]
 .Windsurf (.windsurf/)
 ----
 mkdir -p ~/.windsurf/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.windsurf/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.windsurf/skills/
 ----
 
 [TIP]
@@ -103,4 +114,5 @@ Desde el agente de IA verificá que los skills están disponibles con:
 /software-testing
 /documentation-generator
 /spring-boot-developer
+/version-control
 ----
