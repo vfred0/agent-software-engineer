@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+# 1.0.2 (2026-05-18)
+
+### Agent Skills
+
+ * docs  **version-control:** make author attribution optional in release notes format ([cf088a8](https://github.com/vfred0/agent-software-engineer/commit/cf088a8))
+ * docs  **version-control:** remove author attribution from release notes format ([c03e060](https://github.com/vfred0/agent-software-engineer/commit/c03e060))
+ * docs  add version-control skill to install commands in README ([b3fc5db](https://github.com/vfred0/agent-software-engineer/commit/b3fc5db))
+
 # 1.0.1 (2026-05-17)
 
 ### Agent Skills
