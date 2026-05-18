@@ -48,14 +48,14 @@ Ejecutá el comando desde la raíz de tu proyecto destino.
 .Claude Code (.claude/)
 ----
 mkdir -p ~/.claude/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.claude/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.claude/skills/
 ----
 
 [source,bash]
 .Gemini CLI (.gemini/)
 ----
 mkdir -p ~/.gemini/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer} ~/.gemini/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.gemini/skills/
 ----
 
 [source,bash]
