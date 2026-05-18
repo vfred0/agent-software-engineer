@@ -14,9 +14,9 @@ Todo GitHub Release debe seguir exactamente esta estructura: un encabezado `## W
 
 ```markdown
 ## What's Changed
-* {commit_message_1} by @{author} in {commit_url_1}
-* {commit_message_2} by @{author} in {commit_url_2}
-* {commit_message_3} by @{author} in {commit_url_3}
+* {commit_message_1} in {commit_url_1}
+* {commit_message_2} in {commit_url_2}
+* {commit_message_3} in {commit_url_3}
 
 **Full Changelog**: https://github.com/{owner}/{repo}/compare/{previous_tag}...{new_tag}
 ```
@@ -27,9 +27,9 @@ Todo GitHub Release debe seguir exactamente esta estructura: un encabezado `## W
 
 ```markdown
 ## What's Changed
-* refactor(treatments): move TreatmentUtil logic to TreatmentDto by @vfred0 in https://github.com/vfred0/dental-system-frontend/commit/ffee3c6
-* refactor(dental-services): use explicit imports in explorer component by @vfred0 in https://github.com/vfred0/dental-system-frontend/commit/972b6ae
-* chore(treatments): comment out complexity and dentalServices in detail view by @vfred0 in https://github.com/vfred0/dental-system-frontend/commit/02b6f38
+* refactor(treatments): move TreatmentUtil logic to TreatmentDto in https://github.com/vfred0/dental-system-frontend/commit/ffee3c6
+* refactor(dental-services): use explicit imports in explorer component in https://github.com/vfred0/dental-system-frontend/commit/972b6ae
+* chore(treatments): comment out complexity and dentalServices in detail view in https://github.com/vfred0/dental-system-frontend/commit/02b6f38
 
 **Full Changelog**: https://github.com/vfred0/dental-system-frontend/compare/0.1.1...0.1.2
 ```
@@ -47,7 +47,7 @@ Reemplaza las variables según corresponda. Si es el primer release, omite el ra
 ```bash
 echo "## What's Changed" > release_notes.md
 
-git --no-pager log {PREV_TAG}..{NEW_TAG} --no-decorate --format="* %s by @{GH_USERNAME} in https://github.com/{OWNER}/{REPO}/commit/%h" \
+git --no-pager log {PREV_TAG}..{NEW_TAG} --no-decorate --format="* %s in https://github.com/{OWNER}/{REPO}/commit/%h" \
   | grep -v "chore: bump version" >> release_notes.md
 
 echo "" >> release_notes.md
