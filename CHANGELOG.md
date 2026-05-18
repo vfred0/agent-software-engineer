@@ -4,21 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+# 1.0.1 (2026-05-17)
+
+### Agent Skills
+
+ * docs  **version-control:** update changelog standard to expert flat list format ([f8585a5](https://github.com/vfred0/agent-software-engineer/commit/f8585a5))
+ * docs  **version-control:** add expert github release template ([705d8a2](https://github.com/vfred0/agent-software-engineer/commit/705d8a2))
+
 # 1.0.0 (2026-05-17)
 
-First versioned release. Establishes the full skill set and applies version control conventions across the repository.
+### Agent Skills
 
-### Added
+ * feature  **software-engineer:** add version control as phase 4 and register skill reference ([905e824](https://github.com/vfred0/agent-software-engineer/commit/905e824))
+ * feature  **version-control:** add skill with conventional commits, semver, PRs, changelog, and release workflow ([d3fd09e](https://github.com/vfred0/agent-software-engineer/commit/d3fd09e))
+ * feature  **documentation-generator:** update state diagram example with order processing flow ([678444a](https://github.com/vfred0/agent-software-engineer/commit/678444a))
+ * bug fix  **docs:** correct installation paths to use home directory ([b4060aa](https://github.com/vfred0/agent-software-engineer/commit/b4060aa))
+ * chore  **:** refactor ([22045a7](https://github.com/vfred0/agent-software-engineer/commit/22045a7))
+ * chore  **:** refactor skills and added spring boot developer ([3a94477](https://github.com/vfred0/agent-software-engineer/commit/3a94477))
 
-* **version-control:** new skill covering conventional commits, semver, PRs, issues, changelog format, and release workflow with `gh` ([d3fd09e](https://github.com/vfred0/agent-software-engineer/commit/d3fd09e))
-* **documentation-generator:** updated state diagram example with order processing flow and component contracts ([678444a](https://github.com/vfred0/agent-software-engineer/commit/678444a))
-* **software-engineer:** added version control as phase 4 of the engineering workflow ([905e824](https://github.com/vfred0/agent-software-engineer/commit/905e824))
-
-### Fixed
-
-* **docs:** correct installation paths to use home directory (`~/`) instead of hardcoded absolute paths ([b4060aa](https://github.com/vfred0/agent-software-engineer/commit/b4060aa))
-
-### Skills in this release
+### Skills in this repository
 
 | Skill | Description |
 |---|---|
