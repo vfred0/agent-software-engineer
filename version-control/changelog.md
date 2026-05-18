@@ -5,119 +5,88 @@
 El changelog es el contrato de comunicación con los consumidores del proyecto. Responde a: "¿qué cambió entre la versión que tengo y la que voy a actualizar?"
 
 Un buen changelog:
-- Está escrito para el **usuario del paquete**, no para el desarrollador
-- Lista solo lo que **impacta al usuario** (no refactors internos, no cambios de CI)
-- Tiene **links verificables** a PRs y commits para auditoría
-- Sigue un formato **consistente y parseable**
+- Está escrito para el **usuario del paquete**, no para el desarrollador.
+- Lista solo lo que **impacta al usuario** (no saltos de versión internos ni cambios puros de CI).
+- Tiene **links verificables** a los commits para auditoría y trazabilidad.
+- Sigue un formato **consistente, limpio y directo**.
 
 ---
 
-## 2. FORMATO KEEP A CHANGELOG
+## 2. FORMATO EXPERTO (LISTA PLANA)
 
-Estándar de la industria: https://keepachangelog.com
+A diferencia del formato tradicional agrupado por `### Features` o `### Bug Fixes`, el estándar experto (usado en repositorios corporativos maduros) mantiene una **lista plana** de cambios para cada versión bajo un subtítulo de proyecto, utilizando el tipo de commit como prefijo en texto plano.
+
+Esto reduce el ruido visual, evita encabezados vacíos y facilita la lectura rápida cronológica.
 
 ```markdown
-# Changelog
+# 1.5.0 (2024-03-15)
 
-## [Unreleased]
+### Nombre del Proyecto
 
-## [1.5.0] - 2024-03-15
+ * bug fix  **tooltip:** allow iframe for examples in stable documentation ([3c2fd9c](link))
+ * bug fix  **breadcrumbs:** overflow handling to include margin ([6b9246c](link))
+ * feature  **modal:** make `KbqModalService` providedIn root ([4c304d7](link))
+ * feature  **tags:** call onChange only on UI-initiated changes ([c20500e](link))
 
-### Added
-- New `placement` input for `tooltip` component (#123)
+# 1.4.2 (2024-02-20)
 
-### Fixed
-- Select resets value when options load asynchronously (#117)
+### Nombre del Proyecto
 
-### Changed
-- `position` input deprecated in favor of `placement`
-
-### Removed
-- Removed `color` input from `button` (use `variant` instead)
-
-### Breaking Changes
-- `color` input removed — update all usages to `variant`
-
-## [1.4.2] - 2024-02-20
-
-### Fixed
-- Navbar icon color in active state (#109)
+ * bug fix  **navbar:** icon color in active state ([5a97c22](link))
 ```
 
-**Secciones estándar (en orden):** `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, `Breaking Changes`.
+**Mapeo de Conventional Commits al texto plano:**
+- `feat` → `feature`
+- `fix` → `bug fix`
+- `refactor` → `refactor`
+- `chore` → `chore`
+- `docs` → `docs`
 
 ---
 
-## 3. FORMATO GENERADO POR CONVENTIONAL-CHANGELOG
+## 3. FORMATOS CLÁSICOS O LEGACY (A EVITAR)
 
-El preset `angular` de `conventional-changelog` genera un formato distinto, más automatizado:
+### Keep a Changelog (Manual)
+Usa agrupadores `### Added`, `### Fixed`, `### Changed`, etc. Difícil de mantener automatizado.
 
-```markdown
-# 1.5.0 (2024-03-15)         ← MINOR o MAJOR: H1
+### Angular Preset (Generado Agrupado)
+Agrupa automáticamente bajo `### Features`, `### Bug Fixes`, `### Chores`. Genera mucho ruido visual (encabezados repetitivos) en releases con pocos commits.
 
-### Features
-
-* **tooltip:** add `placement` input ([#DS-4901](link)) ([#123](link)) ([a3f2b1c](link))
-
-### Bug Fixes
-
-* **select:** prevent value reset on async options load ([#DS-4858](link)) ([#117](link)) ([c1a8e3f](link))
-
-### BREAKING CHANGES
-
-* **button:** `color` input removed. Use `variant` instead.
-
-## 1.4.2 (2024-02-20)        ← PATCH: H2
-
-### Bug Fixes
-
-* **navbar:** icon color in active state ([#DS-5019](link)) ([#109](link)) ([5a97c22](link))
-```
-
-**Variante personalizada (koobiq):** usa categorías como texto plano (`bug fix`, `feature`) en lugar de headers, y el heading H1/H2 depende de si es minor/major vs patch.
+*Se prefiere siempre el Formato Experto de lista plana frente a este formato agrupado.*
 
 ---
 
 ## 4. QUÉ COMMITS APARECEN EN EL CHANGELOG
 
-| Tipo | Aparece | Sección |
-|---|---|---|
-| `feat` | ✅ | Features / Added |
-| `fix` | ✅ | Bug Fixes / Fixed |
-| `perf` | ✅ | Performance |
-| `revert` | ✅ | Reverts |
-| `docs` | según config | Docs |
-| `refactor` | según config | Refactors |
-| `BREAKING CHANGE` footer | ✅ | Breaking Changes |
-| `chore`, `test`, `ci`, `build`, `style` | ✗ | — |
+| Tipo | Aparece en el Changelog Experto |
+|---|---|
+| `feat` | ✅ (como `feature`) |
+| `fix` | ✅ (como `bug fix`) |
+| `refactor` | ✅ (como `refactor` - si aporta valor estructural) |
+| `chore` | ✅ (como `chore` - dependencias clave o scripts relevantes) |
+| `docs` | ✅ (como `docs` - documentación pública) |
+| `BREAKING CHANGE` | ✅ (Requiere mención explícita o salto MAJOR) |
+| internos (`bump version`, `initial commit`) | ✗ (Se deben **filtrar siempre**) |
 
 ---
 
-## 5. HERRAMIENTAS DE GENERACIÓN
+## 5. GENERACIÓN AUTOMATIZADA
 
-| Herramienta | Descripción | Cuándo usarla |
-|---|---|---|
-| `conventional-changelog-cli` | Genera changelog desde commits convencionales | CLI simple, control manual |
-| `standard-version` | Bump de versión + changelog en un comando | Proyectos sin CI automatizado |
-| `semantic-release` | Release completamente automatizado desde CI | Proyectos con CI sólido y confianza en el proceso |
-| `changesets` | Manejo de changelog por paquete en monorepos | Monorepos con versiones independientes |
-| CLI custom | Control total sobre el formato | Proyectos con necesidades muy específicas |
-
-> **Ejemplo real (koobiq):** usa una CLI custom en `packages/cli/src/release/` que internamente usa `conventional-changelog` con el preset `angular` y templates Handlebars propios — para tener un formato de changelog particular sin adoptar ninguna herramienta completa.
+Para mantener el formato experto de lista plana y sincronizarlo perfectamente con los **GitHub Releases**, se recomienda utilizar un script (ej: bash parser con `git log`) que extraiga los commits convencionales y aplique el formato directamente. Esto evita dependencias pesadas como `semantic-release` y mantiene el control total del formato.
 
 ---
 
 ## 6. HEADING LEVEL POR TIPO DE VERSIÓN
 
-Convención del preset angular de conventional-changelog:
+Convención de jerarquía visual:
 
-| Tipo de versión | Heading |
+| Tipo de versión | Heading en Formato Experto |
 |---|---|
 | MINOR (`X.Y.0`) | `#` (H1) |
 | MAJOR (`X.0.0`) | `#` (H1) |
-| PATCH (`X.Y.Z`) | `##` (H2) |
+| PATCH (`X.Y.Z`) | `#` (H1) |
 
-Esto hace que las versiones de feature sean más prominentes visualmente que los hotfixes.
+Se utiliza `H1` para todas las versiones en el formato de lista plana para mantener el archivo limpio, acompañado de un subtítulo `### Nombre del Proyecto` o `### Koobiq` / `### Dental System` para separar el contexto si hay monorepos.
 
 ---
 
@@ -125,20 +94,19 @@ Esto hace que las versiones de feature sean más prominentes visualmente que los
 
 El commit que hace el bump de versión y actualiza `CHANGELOG.md` debe:
 
-- Ser un `chore:` (no aparece en el changelog del usuario)
-- Dejar claro que incluye el changelog
+- Ser un `chore:` (este será filtrado y no aparecerá en la próxima versión).
+- Dejar claro que incluye el changelog.
 
 ```
 chore: bump version to 1.5.0 w/ changelog
-chore(release): 1.5.0                         # alternativa con semantic-release
 ```
 
 ---
 
-## 8. ANTI-PATRONES
+## 8. ANTI-PATRONES CRÍTICOS
 
-- **Changelog escrito a mano sin formato consistente** — imposible de parsear ni comparar entre versiones
-- **"See commit history for changes"** — el commit history no es un changelog para usuarios
-- **Incluir cambios internos** (`chore`, refactors) — ruido sin valor para el consumidor
-- **No linkear PRs ni commits** — sin links no hay trazabilidad para auditorías
-- **Acumular "Unreleased" sin versionar** — si hay muchos cambios sin fecha, el changelog pierde utilidad
+- **Changelog escrito a mano sin formato consistente** — imposible de parsear ni auditar.
+- **Agrupar en exceso (Features / Fixes / Chores / etc.)** — rompe la legibilidad y genera títulos huecos.
+- **Incluir cambios internos basura** (ej: `chore: bump version`) — ensucia la lista que los usuarios leen.
+- **No linkear commits** — sin links cortos `([hash](url))` se pierde trazabilidad.
+- **"See commit history for changes"** — el historial de git puro NO es un changelog.
