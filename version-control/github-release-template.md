@@ -10,7 +10,7 @@ No agrupes los commits por tipo en el GitHub Release. Deja que el mensaje del co
 
 ## 1. El Formato Estándar
 
-Todo GitHub Release debe seguir exactamente esta estructura: un encabezado `## What's Changed`, la lista plana de commits con su autor y enlace, y un pie de página con el enlace al comparador completo.
+Todo GitHub Release debe seguir exactamente esta estructura: un encabezado `## What's Changed`, la lista plana de commits con enlace, y un pie de página con el enlace al comparador completo.
 
 ```markdown
 ## What's Changed
@@ -20,6 +20,11 @@ Todo GitHub Release debe seguir exactamente esta estructura: un encabezado `## W
 
 **Full Changelog**: https://github.com/{owner}/{repo}/compare/{previous_tag}...{new_tag}
 ```
+
+> **Atribución de autor (opcional):** Incluir `by @{author}` entre el mensaje y la URL **solo cuando el usuario lo indique explícitamente** (por ejemplo, "agregá los cambios con el username @vfred0"). En ese caso el formato de cada línea pasa a ser:
+> ```
+> * {commit_message} by @{author} in {commit_url}
+> ```
 
 ---
 
@@ -47,7 +52,12 @@ Reemplaza las variables según corresponda. Si es el primer release, omite el ra
 ```bash
 echo "## What's Changed" > release_notes.md
 
+# Sin atribución (default)
 git --no-pager log {PREV_TAG}..{NEW_TAG} --no-decorate --format="* %s in https://github.com/{OWNER}/{REPO}/commit/%h" \
+  | grep -v "chore: bump version" >> release_notes.md
+
+# Con atribución (solo si el usuario lo indica explícitamente)
+git --no-pager log {PREV_TAG}..{NEW_TAG} --no-decorate --format="* %s by @{GH_USERNAME} in https://github.com/{OWNER}/{REPO}/commit/%h" \
   | grep -v "chore: bump version" >> release_notes.md
 
 echo "" >> release_notes.md
