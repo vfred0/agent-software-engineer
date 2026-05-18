@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+# 1.0.3 (2026-05-18)
+
+### Agent Skills
+
+ * docs  add version-control to directory tree, all agent installs and slash commands ([68bfb5d](https://github.com/vfred0/agent-software-engineer/commit/68bfb5d))
+
 # 1.0.2 (2026-05-18)
 
 ### Agent Skills
