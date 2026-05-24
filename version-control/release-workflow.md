@@ -123,17 +123,13 @@ git push origin 1.5.0
 gh release create 1.5.0 \
   --title "1.5.0" \
   --notes "$(cat <<'EOF'
-## What's new in 1.5.0
+## What's Changed
+* feat(tooltip): add placement input as replacement for position in https://github.com/{owner}/{repo}/commit/{hash}
+* feat(select): add clearable option in https://github.com/{owner}/{repo}/commit/{hash}
+* fix(navbar): icon color in active state in https://github.com/{owner}/{repo}/commit/{hash}
+* fix(select): prevent value reset on async options load in https://github.com/{owner}/{repo}/commit/{hash}
 
-### Features
-
-* **tooltip:** add `placement` input as replacement for `position`
-* **select:** add clearable option
-
-### Bug Fixes
-
-* **navbar:** icon color in active state
-* **select:** prevent value reset on async options load
+**Full Changelog**: https://github.com/{owner}/{repo}/compare/1.4.0...1.5.0
 EOF
 )"
 ```
