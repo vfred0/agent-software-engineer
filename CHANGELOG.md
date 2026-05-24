@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+# 1.0.4 (2026-05-24)
+
+### Agent Skills
+
+ * docs  **version-control:** update release example to flat What's Changed format ([4b10dce](https://github.com/vfred0/agent-software-engineer/commit/4b10dce))
+
 # 1.0.3 (2026-05-18)
 
 ### Agent Skills
