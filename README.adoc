@@ -39,15 +39,26 @@ Para que un agente funcione correctamente, debe seguir una estructura de directo
     │   └── SKILL.md
     ├── spring-boot-developer/
     │   └── SKILL.md
-    └── version-control/
+    ├── version-control/
+    │   ├── SKILL.md
+    │   ├── changelog.md
+    │   ├── conventional-commits.md
+    │   ├── github-release-template.md
+    │   ├── issues.md
+    │   ├── pull-requests.md
+    │   ├── release-workflow.md
+    │   └── semver.md
+    └── ci-cd/
         ├── SKILL.md
-        ├── changelog.md
-        ├── conventional-commits.md
-        ├── github-release-template.md
-        ├── issues.md
-        ├── pull-requests.md
-        ├── release-workflow.md
-        └── semver.md
+        └── references/
+            ├── fundamentos.md
+            ├── pipeline-despliegue.md
+            ├── metricas-dora.md
+            ├── arquitectura-habilitadora.md
+            ├── estrategias-branching.md
+            ├── estrategias-release.md
+            ├── feature-flags.md
+            └── pruebas-pipeline.md
 ----
 
 == Instalación
@@ -59,42 +70,42 @@ Ejecutá el comando desde la raíz de tu proyecto destino.
 .Claude Code (.claude/)
 ----
 mkdir -p ~/.claude/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.claude/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control,ci-cd} ~/.claude/skills/
 ----
 
 [source,bash]
 .Gemini CLI (.gemini/)
 ----
 mkdir -p ~/.gemini/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.gemini/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control,ci-cd} ~/.gemini/skills/
 ----
 
 [source,bash]
 .GitHub Copilot (.github/)
 ----
 mkdir -p ~/.github/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.github/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control,ci-cd} ~/.github/skills/
 ----
 
 [source,bash]
 .OpenCode (.opencode/)
 ----
 mkdir -p ~/.opencode/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.opencode/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control,ci-cd} ~/.opencode/skills/
 ----
 
 [source,bash]
 .Cursor (.cursor/)
 ----
 mkdir -p ~/.cursor/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.cursor/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control,ci-cd} ~/.cursor/skills/
 ----
 
 [source,bash]
 .Windsurf (.windsurf/)
 ----
 mkdir -p ~/.windsurf/skills
-cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control} ~/.windsurf/skills/
+cp -r ./{software-engineer,software-design,software-testing,documentation-generator,spring-boot-developer,version-control,ci-cd} ~/.windsurf/skills/
 ----
 
 [TIP]
@@ -115,4 +126,5 @@ Desde el agente de IA verificá que los skills están disponibles con:
 /documentation-generator
 /spring-boot-developer
 /version-control
+/ci-cd
 ----
