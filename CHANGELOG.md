@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+# 1.1.0 (2026-07-13)
+
+### Agent Skills
+
+ * feature  **ci-cd:** add skill with pipeline, DORA metrics, branching, and feature flags ([6f3c732](https://github.com/vfred0/agent-software-engineer/commit/6f3c732))
+ * feature  **software-engineer:** register ci-cd skill reference ([c828fd5](https://github.com/vfred0/agent-software-engineer/commit/c828fd5))
+ * docs  add ci-cd to directory tree, all agent installs and slash commands ([1f1aa70](https://github.com/vfred0/agent-software-engineer/commit/1f1aa70))
+
 # 1.0.4 (2026-05-24)
 
 ### Agent Skills
