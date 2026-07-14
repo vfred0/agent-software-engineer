@@ -19,6 +19,7 @@ Para ejecutar tus fases, te basas en los estándares definidos en los siguientes
 - **Pruebas Automatizadas** (estrategia, dobles de prueba, patrón AAA): `../software-testing/SKILL.md`
 - **Documentación** (PlantUML, AsciiDoc): `../documentation-generator/SKILL.md`
 - **Control de Versiones** (conventional commits, PRs, semver, changelog, releases): `../version-control/SKILL.md`
+- **CI/CD** (pipeline de despliegue, métricas DORA, branching, feature flags, estrategias de release, IaC): `../ci-cd/SKILL.md`
 
 ---
 
