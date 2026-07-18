@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+# 1.2.0 (2026-07-18)
+
+### Agent Skills
+
+ * feature  **ansible:** add skill with role structure, playbook workflow, Jinja2, inventory, vault and collections best practices ([6fa4fb8](https://github.com/vfred0/agent-software-engineer/commit/6fa4fb8))
+ * feature  **software-engineer:** register ansible skill reference ([799f736](https://github.com/vfred0/agent-software-engineer/commit/799f736))
+ * docs  add ansible to directory tree, all agent installs and slash commands ([718a1ef](https://github.com/vfred0/agent-software-engineer/commit/718a1ef))
+
 # 1.1.0 (2026-07-13)
 
 ### Agent Skills
